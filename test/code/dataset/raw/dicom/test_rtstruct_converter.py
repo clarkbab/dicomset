@@ -9,8 +9,8 @@ from unittest import TestCase
 root_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', '..', '..', '..'))
 sys.path.append(root_dir)
 
-from mymi.dataset.raw.dicom import ROIData, RTSTRUCTConverter
-from mymi.regions import to_255, RegionColours
+from dicomset.dataset.raw.dicom import ROIData, RTSTRUCTConverter
+from dicomset.regions import to_255, RegionColours
 
 class TestRTSTRUCTConverter(TestCase):
     def test_bidirectional_conversion(self):

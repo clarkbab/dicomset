@@ -7,7 +7,7 @@ from unittest import TestCase
 
 root_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', '..'))
 sys.path.append(root_dir)
-from mymi.metrics import dice
+from dicomset.metrics import dice
 
 class TestDice(TestCase):
     def test_dice_patient(self):

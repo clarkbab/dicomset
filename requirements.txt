@@ -234,7 +234,6 @@ stack-data==0.5.0
 statannotations==0.4.4
 statsmodels==0.13.2
 subprocess32==3.5.4
-Surface-Distance-Based-Measures @ file:///home/baclark/code/surface-distance
 sympy==1.11
 tabulate==0.8.7
 tensorflow==2.11.0

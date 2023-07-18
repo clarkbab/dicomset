@@ -7,7 +7,7 @@ from unittest import TestCase
 
 root_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', '..'))
 sys.path.append(root_dir)
-from mymi.metrics import hausdorff_distance, percentile_hausdorff_distance
+from dicomset.metrics import hausdorff_distance, percentile_hausdorff_distance
 
 class TestHausdorff(TestCase):
     def test_hausdorff_distance_patient(self):
