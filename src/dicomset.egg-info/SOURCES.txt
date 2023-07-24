@@ -8,7 +8,10 @@ src/dicomset.egg-info/dependency_links.txt
 src/dicomset.egg-info/top_level.txt
 src/dicomset/dataset/__init__.py
 src/dicomset/dataset/dataset.py
+<<<<<<< HEAD
 src/dicomset/dataset/shared.py
+=======
+>>>>>>> 1855edb (Added error index to DICOM->NIFTI processing)
 src/dicomset/dataset/dicom/__init__.py
 src/dicomset/dataset/dicom/ct_series.py
 src/dicomset/dataset/dicom/dicom_dataset.py

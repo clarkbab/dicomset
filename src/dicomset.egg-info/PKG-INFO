@@ -1,6 +1,10 @@
 Metadata-Version: 2.1
 Name: dicomset
+<<<<<<< HEAD
 Version: 0.0.25
+=======
+Version: 0.0.17
+>>>>>>> 1855edb (Added error index to DICOM->NIFTI processing)
 Summary: Python library for DICOM processing and analysis
 Author-email: Brett Clark <clarkbab@gmail.com>
 Project-URL: Homepage, https://github.com/clarkbab/dicomset
