@@ -66,7 +66,11 @@ def convert_to_nifti(
     error_index = MultiIndex(levels=[[], []], codes=[[], []], names=ERROR_INDEX)
     error_df = DataFrame(columns=ERROR_COLS.keys(), index=error_index)
 
+    n_pats = 0
     for pat_id in tqdm(pat_ids):
+        n_pats += 1
+        if n_pats < 300:
+            continue
         try:
             # Get anonymous ID.
             if anonymise:
