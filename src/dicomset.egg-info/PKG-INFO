@@ -1,0 +1,12 @@
+Metadata-Version: 2.1
+Name: dicomset
+Version: 0.0.25
+Summary: Python library for DICOM processing and analysis
+Author-email: Brett Clark <clarkbab@gmail.com>
+Project-URL: Homepage, https://github.com/clarkbab/dicomset
+Project-URL: Bug Tracker, https://github.com/clarkbab/dicomset/issues
+Classifier: Programming Language :: Python :: 3
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Operating System :: OS Independent
+Requires-Python: >=3.6
+Description-Content-Type: text/markdown
