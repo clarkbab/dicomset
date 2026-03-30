@@ -1,8 +1,30 @@
 import inspect
 import sys
-from typing import Any, Callable, Literal, Tuple, Union, get_args, get_origin
+from typing import Any, Callable, Dict, Literal, Tuple, get_args, get_origin
 
 from .misc import is_windows
+
+def deep_merge(
+    d: Dict[str, Any],
+    default: Dict[str, Any],
+    ) -> Dict[str, Any]:
+    all_keys = list(set(d.keys()).union(set(default.keys())))
+    merged = {}
+    for k in all_keys:
+        if k in d and k in default:
+            if isinstance(default[k], dict):
+                assert isinstance(d[k], dict)
+                merged[k] = deep_merge(d[k], default[k])
+            elif isinstance(default[k], (bool, int, float, str)):
+                merged[k] = d[k] if k in d else default[k]
+            else:
+                raise ValueError(f"Unrecognised type for default key '{k}'.")
+        elif k in d:
+            merged[k] = d[k]
+        else:
+            merged[k] = default[k]
+            
+    return merged
 
 def delegates_to(*inner_fns: Callable) -> Callable:
     if is_windows() or not version(gte='3.9'):

@@ -48,34 +48,126 @@ SKIP_PATTERNS = {'__pycache__', '.egg-info', 'node_modules', '.git', '.venv', 'v
 # Helpers — resolve star-importable names from a module
 # ---------------------------------------------------------------------------
 
-def _resolve_module_path(from_module: str, file_path: Path) -> Optional[Path]:
-    """Resolve a relative import like ``...typing`` to the actual file."""
-    # Count leading dots.
-    dots = 0
-    for ch in from_module:
-        if ch == '.':
-            dots += 1
-        else:
-            break
-    remainder = from_module[dots:]  # e.g. "typing", "utils.args"
+def _bare_imports_from_file(module_path: Path) -> List[Tuple[str, Optional[str]]]:
+    """Return ``(module, asname)`` pairs for top-level ``import X [as Y]``
+    statements in *module_path*.  These are the transitive bare imports that
+    a ``from module import *`` would make available."""
+    try:
+        source = module_path.read_text(encoding='utf-8')
+        tree = ast.parse(source)
+    except (SyntaxError, UnicodeDecodeError, PermissionError):
+        return []
 
-    # Walk up from the current file's package directory.
-    # 1 dot = same package (no traversal), 2 dots = parent (1 up), etc.
-    base = file_path.parent
-    for _ in range(dots - 1):
-        base = base.parent
+    results: List[Tuple[str, Optional[str]]] = []
+    for node in ast.iter_child_nodes(tree):
+        if isinstance(node, ast.Import):
+            for alias in node.names:
+                results.append((alias.name, alias.asname))
+    return results
 
-    # Resolve the module within that base.
-    parts = remainder.split('.') if remainder else []
-    target = base.joinpath(*parts)
 
-    # Could be a package (directory with __init__.py) or a module (.py).
-    if target.is_dir() and (target / '__init__.py').exists():
-        return target / '__init__.py'
-    py = target.with_suffix('.py')
-    if py.exists():
-        return py
-    return None
+def _collect_all_names_in_source(source: str) -> Set[str]:
+    """Return every Name node's id in the entire source (including type annotations)."""
+    try:
+        tree = ast.parse(source)
+    except SyntaxError:
+        return set()
+
+    names: Set[str] = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Name):
+            names.add(node.id)
+        elif isinstance(node, ast.Attribute):
+            root = node
+            while isinstance(root, ast.Attribute):
+                root = root.value
+            if isinstance(root, ast.Name):
+                names.add(root.id)
+        elif isinstance(node, ast.Constant) and isinstance(node.value, str):
+            for token in re.findall(r'[A-Za-z_]\w*', node.value):
+                names.add(token)
+    return names
+
+
+def _collect_used_names(source: str, import_end_line: int) -> Set[str]:
+    """Return all name tokens used in *source* after the import block."""
+    try:
+        tree = ast.parse(source)
+    except SyntaxError:
+        return set()
+
+    names: Set[str] = set()
+    for node in ast.walk(tree):
+        # Skip nodes that are part of the import block.
+        if hasattr(node, 'lineno') and node.lineno <= import_end_line:
+            # Still walk into the rest if the node spans beyond.
+            if isinstance(node, (ast.Import, ast.ImportFrom)):
+                continue
+
+        if isinstance(node, ast.Name):
+            names.add(node.id)
+        elif isinstance(node, ast.Attribute):
+            # For chained attributes like np.ndarray, collect 'np'.
+            root = node
+            while isinstance(root, ast.Attribute):
+                root = root.value
+            if isinstance(root, ast.Name):
+                names.add(root.id)
+        # Annotations in strings (forward references).
+        elif isinstance(node, ast.Constant) and isinstance(node.value, str):
+            # Simple heuristic: if the string looks like a type annotation.
+            for token in re.findall(r'[A-Za-z_]\w*', node.value):
+                names.add(token)
+        elif isinstance(node, ast.FunctionDef) or isinstance(node, ast.AsyncFunctionDef):
+            # Collect names from decorators and annotations.
+            pass  # ast.walk handles them.
+
+    return names
+
+
+def _expand_star_import(
+    from_module: str,
+    file_path: Path,
+    used_names: Set[str],
+) -> Tuple[Optional[List[str]], List['_Import']]:
+    """Return (names_to_import, extra_bare_imports) to replace ``*``.
+
+    *names_to_import* is the sorted list of ``from X import ...`` names,
+    or ``None`` if the module could not be resolved.
+
+    *extra_bare_imports* contains any ``import X as Y`` statements that
+    the star-imported module makes available (e.g. ``import numpy as np``
+    inside ``augmed/typing.py``).
+    """
+    extra: List[_Import] = []
+
+    # Check if this is a relative import (has leading dots).
+    dots = sum(1 for ch in from_module if ch == '.')
+    if dots > 0:
+        mod_path = _resolve_module_path(from_module, file_path)
+        if mod_path is None:
+            return None, []
+        available = _public_names_from_file(mod_path)
+        # Also collect bare ``import X [as Y]`` from the module.
+        for mod, asname in _bare_imports_from_file(mod_path):
+            check = asname or mod.split('.')[0]
+            if check in used_names:
+                extra.append(_Import(
+                    alias=asname,
+                    is_from=False,
+                    level=0,
+                    module=mod,
+                    names=[(mod, asname)],
+                    raw='',
+                ))
+    else:
+        # Absolute import (stdlib / third-party).
+        available = _public_names_from_module(from_module)
+    if not available:
+        return None, extra
+    # Only keep names that are actually used.
+    needed = sorted(available & used_names, key=_import_name_sort_key)
+    return (needed if needed else None), extra
 
 
 def _public_names_from_file(module_path: Path) -> Set[str]:
@@ -140,23 +232,9 @@ def _public_names_from_file(module_path: Path) -> Set[str]:
     return names
 
 
-def _bare_imports_from_file(module_path: Path) -> List[Tuple[str, Optional[str]]]:
-    """Return ``(module, asname)`` pairs for top-level ``import X [as Y]``
-    statements in *module_path*.  These are the transitive bare imports that
-    a ``from module import *`` would make available."""
-    try:
-        source = module_path.read_text(encoding='utf-8')
-        tree = ast.parse(source)
-    except (SyntaxError, UnicodeDecodeError, PermissionError):
-        return []
-
-    results: List[Tuple[str, Optional[str]]] = []
-    for node in ast.iter_child_nodes(tree):
-        if isinstance(node, ast.Import):
-            for alias in node.names:
-                results.append((alias.name, alias.asname))
-    return results
-
+# ---------------------------------------------------------------------------
+# Collect all names used in the file body (excluding import section)
+# ---------------------------------------------------------------------------
 
 def _public_names_from_module(module_name: str) -> Set[str]:
     """Return public names exported by an installed (stdlib / third-party) module."""
@@ -170,112 +248,34 @@ def _public_names_from_module(module_name: str) -> Set[str]:
     return {n for n in dir(mod) if not n.startswith('_')}
 
 
-def _expand_star_import(
-    from_module: str,
-    file_path: Path,
-    used_names: Set[str],
-) -> Tuple[Optional[List[str]], List['_Import']]:
-    """Return (names_to_import, extra_bare_imports) to replace ``*``.
+def _resolve_module_path(from_module: str, file_path: Path) -> Optional[Path]:
+    """Resolve a relative import like ``...typing`` to the actual file."""
+    # Count leading dots.
+    dots = 0
+    for ch in from_module:
+        if ch == '.':
+            dots += 1
+        else:
+            break
+    remainder = from_module[dots:]  # e.g. "typing", "utils.args"
 
-    *names_to_import* is the sorted list of ``from X import ...`` names,
-    or ``None`` if the module could not be resolved.
+    # Walk up from the current file's package directory.
+    # 1 dot = same package (no traversal), 2 dots = parent (1 up), etc.
+    base = file_path.parent
+    for _ in range(dots - 1):
+        base = base.parent
 
-    *extra_bare_imports* contains any ``import X as Y`` statements that
-    the star-imported module makes available (e.g. ``import numpy as np``
-    inside ``augmed/typing.py``).
-    """
-    extra: List[_Import] = []
+    # Resolve the module within that base.
+    parts = remainder.split('.') if remainder else []
+    target = base.joinpath(*parts)
 
-    # Check if this is a relative import (has leading dots).
-    dots = sum(1 for ch in from_module if ch == '.')
-    if dots > 0:
-        mod_path = _resolve_module_path(from_module, file_path)
-        if mod_path is None:
-            return None, []
-        available = _public_names_from_file(mod_path)
-        # Also collect bare ``import X [as Y]`` from the module.
-        for mod, asname in _bare_imports_from_file(mod_path):
-            check = asname or mod.split('.')[0]
-            if check in used_names:
-                extra.append(_Import(
-                    alias=asname,
-                    is_from=False,
-                    level=0,
-                    module=mod,
-                    names=[(mod, asname)],
-                    raw='',
-                ))
-    else:
-        # Absolute import (stdlib / third-party).
-        available = _public_names_from_module(from_module)
-    if not available:
-        return None, extra
-    # Only keep names that are actually used.
-    needed = sorted(available & used_names, key=_import_name_sort_key)
-    return (needed if needed else None), extra
-
-
-# ---------------------------------------------------------------------------
-# Collect all names used in the file body (excluding import section)
-# ---------------------------------------------------------------------------
-
-def _collect_used_names(source: str, import_end_line: int) -> Set[str]:
-    """Return all name tokens used in *source* after the import block."""
-    try:
-        tree = ast.parse(source)
-    except SyntaxError:
-        return set()
-
-    names: Set[str] = set()
-    for node in ast.walk(tree):
-        # Skip nodes that are part of the import block.
-        if hasattr(node, 'lineno') and node.lineno <= import_end_line:
-            # Still walk into the rest if the node spans beyond.
-            if isinstance(node, (ast.Import, ast.ImportFrom)):
-                continue
-
-        if isinstance(node, ast.Name):
-            names.add(node.id)
-        elif isinstance(node, ast.Attribute):
-            # For chained attributes like np.ndarray, collect 'np'.
-            root = node
-            while isinstance(root, ast.Attribute):
-                root = root.value
-            if isinstance(root, ast.Name):
-                names.add(root.id)
-        # Annotations in strings (forward references).
-        elif isinstance(node, ast.Constant) and isinstance(node.value, str):
-            # Simple heuristic: if the string looks like a type annotation.
-            for token in re.findall(r'[A-Za-z_]\w*', node.value):
-                names.add(token)
-        elif isinstance(node, ast.FunctionDef) or isinstance(node, ast.AsyncFunctionDef):
-            # Collect names from decorators and annotations.
-            pass  # ast.walk handles them.
-
-    return names
-
-
-def _collect_all_names_in_source(source: str) -> Set[str]:
-    """Return every Name node's id in the entire source (including type annotations)."""
-    try:
-        tree = ast.parse(source)
-    except SyntaxError:
-        return set()
-
-    names: Set[str] = set()
-    for node in ast.walk(tree):
-        if isinstance(node, ast.Name):
-            names.add(node.id)
-        elif isinstance(node, ast.Attribute):
-            root = node
-            while isinstance(root, ast.Attribute):
-                root = root.value
-            if isinstance(root, ast.Name):
-                names.add(root.id)
-        elif isinstance(node, ast.Constant) and isinstance(node.value, str):
-            for token in re.findall(r'[A-Za-z_]\w*', node.value):
-                names.add(token)
-    return names
+    # Could be a package (directory with __init__.py) or a module (.py).
+    if target.is_dir() and (target / '__init__.py').exists():
+        return target / '__init__.py'
+    py = target.with_suffix('.py')
+    if py.exists():
+        return py
+    return None
 
 
 # ---------------------------------------------------------------------------
@@ -285,12 +285,6 @@ def _collect_all_names_in_source(source: str) -> Set[str]:
 _IMPORT_RE = re.compile(
     r'^(?:import\s|from\s)',
 )
-
-
-def _is_import_line(line: str) -> bool:
-    """True if *line* starts an import statement."""
-    stripped = line.lstrip()
-    return bool(_IMPORT_RE.match(stripped))
 
 
 def _find_import_block(lines: List[str]) -> Tuple[int, int]:
@@ -360,6 +354,12 @@ def _find_import_block(lines: List[str]) -> Tuple[int, int]:
     return (first_import, last_import + 1)
 
 
+def _is_import_line(line: str) -> bool:
+    """True if *line* starts an import statement."""
+    stripped = line.lstrip()
+    return bool(_IMPORT_RE.match(stripped))
+
+
 # ---------------------------------------------------------------------------
 # Import representation
 # ---------------------------------------------------------------------------
@@ -402,6 +402,91 @@ class _Import:
         return f'_Import({self.raw!r})'
 
 
+def collect_files(paths: List[str], ext: str) -> List[Path]:
+    """Expand directories and filter out generated / cache folders."""
+    files: List[Path] = []
+    for p in paths:
+        path = Path(p)
+        if path.is_file():
+            files.append(path)
+        elif path.is_dir():
+            files.extend(sorted(path.rglob(f'*{ext}')))
+    return [f for f in files if not _should_skip(f)]
+
+
+def _external_sort_key(imp: _Import) -> Tuple[int, str]:
+    """Sort key for external (non-relative) imports.
+
+    Sort alphabetically by module name. ``import X`` and ``from X import ...``
+    are interleaved together by module name.
+    """
+    mod = (imp.module or '').lower()
+    # ``from X`` (1) after ``import X`` (0) when same module.
+    return (mod, 1 if imp.is_from else 0)
+
+
+# ---------------------------------------------------------------------------
+# Sort keys
+# ---------------------------------------------------------------------------
+
+def _format_import(imp: _Import) -> str:
+    """Produce a canonical single-line import string."""
+    if not imp.is_from:
+        # ``import X`` or ``import X as Y``
+        name, asname = imp.names[0]
+        if asname:
+            return f'import {name} as {asname}'
+        return f'import {name}'
+
+    # ``from X import ...``
+    prefix = imp.full_module
+    name_strs = []
+    for name, asname in imp.names:
+        if asname:
+            name_strs.append(f'{name} as {asname}')
+        else:
+            name_strs.append(name)
+    joined = ', '.join(name_strs)
+    return f'from {prefix} import {joined}'
+
+
+def _import_name_sort_key(name: str) -> Tuple[int, str]:
+    """Class names (upper-case start) before lower-case, then alphabetical."""
+    # 0 for upper-case (classes), 1 for lower/underscore (functions, variables).
+    return (0 if name[0].isupper() else 1, name.lower()) if name else (2, '')
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(
+        description='Sort and clean import statements in Python source files.')
+    parser.add_argument(
+        'paths', default=['dicomset', 'scripts'], help='Files or directories to process',
+        nargs='*')
+    parser.add_argument(
+        '--fix', action='store_true',
+        help='Rewrite files in-place (default: report only)')
+    parser.add_argument(
+        '--ext', default='.py',
+        help='File extension to scan (default: .py)')
+    args = parser.parse_args()
+
+    files = collect_files(args.paths, args.ext)
+    mode = 'Fixing' if args.fix else 'Checking'
+    print(f'{mode} {len(files)} file(s)...\n')
+
+    total = sum(process_file(f, fix=args.fix) for f in files)
+
+    print()
+    if total == 0:
+        print('All imports are sorted and clean.')
+    elif args.fix:
+        print(f'Fixed imports in {total} file(s) total.')
+    else:
+        print(f'Found issues in {total} file(s). Re-run with --fix to apply.')
+
+    sys.exit(0 if (total == 0 or args.fix) else 1)
+
+
 def _parse_imports(source: str, start: int, end: int, lines: List[str]) -> List[_Import]:
     """Parse import statements from lines[start:end] using AST."""
     # We parse the full source to get AST nodes, then filter by line range.
@@ -442,6 +527,39 @@ def _parse_imports(source: str, start: int, end: int, lines: List[str]) -> List[
     return imports
 
 
+# ---------------------------------------------------------------------------
+# Formatting
+# ---------------------------------------------------------------------------
+
+def process_file(path: Path, *, fix: bool = False) -> int:
+    """Check / fix one file.  Returns count of issues."""
+    try:
+        source = path.read_text(encoding='utf-8')
+    except (UnicodeDecodeError, PermissionError):
+        return 0
+
+    try:
+        ast.parse(source)
+    except SyntaxError as exc:
+        print(f'  Syntax error in {path} (line {exc.lineno}): {exc.msg}')
+        return 0
+
+    new_source, n = sort_imports(source, path.resolve())
+    if n == 0:
+        return 0
+
+    if fix:
+        path.write_text(new_source, encoding='utf-8')
+        print(f'  Fixed imports in {path}')
+    else:
+        print(f'  Unsorted / unused imports in {path}')
+    return n
+
+
+# ---------------------------------------------------------------------------
+# Core logic
+# ---------------------------------------------------------------------------
+
 def _reconstruct_import(node: ast.AST, lines: List[str]) -> str:
     """Get the raw source text for an import AST node."""
     start = node.lineno - 1
@@ -451,30 +569,8 @@ def _reconstruct_import(node: ast.AST, lines: List[str]) -> str:
 
 
 # ---------------------------------------------------------------------------
-# Sort keys
+# File handling
 # ---------------------------------------------------------------------------
-
-def _import_name_sort_key(name: str) -> Tuple[int, str]:
-    """Class names (upper-case start) before lower-case, then alphabetical."""
-    # 0 for upper-case (classes), 1 for lower/underscore (functions, variables).
-    return (0 if name[0].isupper() else 1, name.lower()) if name else (2, '')
-
-
-def _sort_imported_names(names: List[Tuple[str, Optional[str]]]) -> List[Tuple[str, Optional[str]]]:
-    """Sort a list of imported names: classes first, then alphabetical."""
-    return sorted(names, key=lambda pair: _import_name_sort_key(pair[0]))
-
-
-def _external_sort_key(imp: _Import) -> Tuple[int, str]:
-    """Sort key for external (non-relative) imports.
-
-    Sort alphabetically by module name. ``import X`` and ``from X import ...``
-    are interleaved together by module name.
-    """
-    mod = (imp.module or '').lower()
-    # ``from X`` (1) after ``import X`` (0) when same module.
-    return (mod, 1 if imp.is_from else 0)
-
 
 def _relative_sort_key(imp: _Import) -> Tuple[int, str]:
     """Sort key for relative imports: more dots first, then alphabetical."""
@@ -482,33 +578,20 @@ def _relative_sort_key(imp: _Import) -> Tuple[int, str]:
     return (-imp.level, (imp.module or '').lower())
 
 
-# ---------------------------------------------------------------------------
-# Formatting
-# ---------------------------------------------------------------------------
+def _should_skip(path: Path) -> bool:
+    return any(
+        any(skip in part for skip in SKIP_PATTERNS)
+        for part in path.parts
+    )
 
-def _format_import(imp: _Import) -> str:
-    """Produce a canonical single-line import string."""
-    if not imp.is_from:
-        # ``import X`` or ``import X as Y``
-        name, asname = imp.names[0]
-        if asname:
-            return f'import {name} as {asname}'
-        return f'import {name}'
 
-    # ``from X import ...``
-    prefix = imp.full_module
-    name_strs = []
-    for name, asname in imp.names:
-        if asname:
-            name_strs.append(f'{name} as {asname}')
-        else:
-            name_strs.append(name)
-    joined = ', '.join(name_strs)
-    return f'from {prefix} import {joined}'
+def _sort_imported_names(names: List[Tuple[str, Optional[str]]]) -> List[Tuple[str, Optional[str]]]:
+    """Sort a list of imported names: classes first, then alphabetical."""
+    return sorted(names, key=lambda pair: _import_name_sort_key(pair[0]))
 
 
 # ---------------------------------------------------------------------------
-# Core logic
+# CLI
 # ---------------------------------------------------------------------------
 
 def sort_imports(source: str, file_path: Path) -> Tuple[str, int]:
@@ -771,89 +854,6 @@ def sort_imports(source: str, file_path: Path) -> Tuple[str, int]:
 
     new_source = prefix + new_block + suffix
     return new_source, n_changes
-
-
-# ---------------------------------------------------------------------------
-# File handling
-# ---------------------------------------------------------------------------
-
-def _should_skip(path: Path) -> bool:
-    return any(
-        any(skip in part for skip in SKIP_PATTERNS)
-        for part in path.parts
-    )
-
-
-def process_file(path: Path, *, fix: bool = False) -> int:
-    """Check / fix one file.  Returns count of issues."""
-    try:
-        source = path.read_text(encoding='utf-8')
-    except (UnicodeDecodeError, PermissionError):
-        return 0
-
-    try:
-        ast.parse(source)
-    except SyntaxError as exc:
-        print(f'  Syntax error in {path} (line {exc.lineno}): {exc.msg}')
-        return 0
-
-    new_source, n = sort_imports(source, path.resolve())
-    if n == 0:
-        return 0
-
-    if fix:
-        path.write_text(new_source, encoding='utf-8')
-        print(f'  Fixed imports in {path}')
-    else:
-        print(f'  Unsorted / unused imports in {path}')
-    return n
-
-
-def collect_files(paths: List[str], ext: str) -> List[Path]:
-    """Expand directories and filter out generated / cache folders."""
-    files: List[Path] = []
-    for p in paths:
-        path = Path(p)
-        if path.is_file():
-            files.append(path)
-        elif path.is_dir():
-            files.extend(sorted(path.rglob(f'*{ext}')))
-    return [f for f in files if not _should_skip(f)]
-
-
-# ---------------------------------------------------------------------------
-# CLI
-# ---------------------------------------------------------------------------
-
-def main() -> None:
-    parser = argparse.ArgumentParser(
-        description='Sort and clean import statements in Python source files.')
-    parser.add_argument(
-        'paths', default=['dicomset', 'scripts'], help='Files or directories to process',
-        nargs='*')
-    parser.add_argument(
-        '--fix', action='store_true',
-        help='Rewrite files in-place (default: report only)')
-    parser.add_argument(
-        '--ext', default='.py',
-        help='File extension to scan (default: .py)')
-    args = parser.parse_args()
-
-    files = collect_files(args.paths, args.ext)
-    mode = 'Fixing' if args.fix else 'Checking'
-    print(f'{mode} {len(files)} file(s)...\n')
-
-    total = sum(process_file(f, fix=args.fix) for f in files)
-
-    print()
-    if total == 0:
-        print('All imports are sorted and clean.')
-    elif args.fix:
-        print(f'Fixed imports in {total} file(s) total.')
-    else:
-        print(f'Found issues in {total} file(s). Re-run with --fix to apply.')
-
-    sys.exit(0 if (total == 0 or args.fix) else 1)
 
 
 if __name__ == '__main__':

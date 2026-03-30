@@ -1,7 +1,7 @@
-from mymi import config
 import os
-from typing import Dict, List, Optional, Union
+from typing import Dict, List
 
+from .. import config
 from ..dicom import DicomDataset, DicomStudy, logging, mods
 from ..mixins import IndexMixin
 from ..regions_map import RegionsMap
@@ -14,9 +14,10 @@ class NiftiStudy(IndexMixin, Study):
         dataset: 'NiftiDataset',
         pat: 'NiftiPatient',
         id: StudyID,
-        ct_from: Optional['NiftiStudy'] = None,
-        index: Optional[pd.DataFrame] = None,
-        regions_map: Optional[RegionsMap] = None) -> None:
+        ct_from: 'NiftiStudy' | None = None,
+        index: pd.DataFrame | None = None,
+        regions_map: RegionsMap | None = None,
+        ) -> None:
         super().__init__(dataset, pat, id, ct_from=ct_from, index=index, regions_map=regions_map)
         self.__path = os.path.join(config.directories.datasets, 'nifti', self._dataset.id, 'data', 'patients', self._pat.id, self._id)
         if not os.path.exists(self.__path):
@@ -24,7 +25,8 @@ class NiftiStudy(IndexMixin, Study):
 
     def default_series(
         self,
-        modality: NiftiModality) -> Optional[NiftiSeries]:
+        modality: NiftiModality,
+        ) -> NiftiSeries | None:
         serieses = self.list_series(modality)
         if len(serieses) > 1:
             logging.warning(f"More than one '{modality}' series found for '{self}', defaulting to latest.")

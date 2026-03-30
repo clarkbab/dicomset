@@ -6,23 +6,6 @@ from typing import List
 
 from .dataset import TrainingDataset
 
-def list() -> List[str]:
-    path = os.path.join(config.directories.datasets, 'training')
-    if os.path.exists(path):
-        return sorted(os.listdir(path))
-    else:
-        return []
-
-def get(name: str) -> TrainingDataset:
-    if exists(name):
-        return TrainingDataset(name)
-    else:
-        raise ValueError(f"TrainingDataset '{name}' doesn't exist.")
-
-def exists(name: str) -> bool:
-    ds_path = os.path.join(config.directories.datasets, 'training', name)
-    return os.path.exists(ds_path)
-
 def create(name: str) -> TrainingDataset:
     ds_path = os.path.join(config.directories.datasets, 'training', name)
     os.makedirs(ds_path)
@@ -38,10 +21,27 @@ def destroy(
             lambda: shutil.rmtree(ds_path),
             f"Destroying training dataset '{name}' at {ds_path}."
         )
-    
+
 def exists(name: str) -> bool:
     ds_path = os.path.join(config.directories.datasets, 'training', name)
     return os.path.exists(ds_path)
+
+def exists(name: str) -> bool:
+    ds_path = os.path.join(config.directories.datasets, 'training', name)
+    return os.path.exists(ds_path)
+
+def get(name: str) -> TrainingDataset:
+    if exists(name):
+        return TrainingDataset(name)
+    else:
+        raise ValueError(f"TrainingDataset '{name}' doesn't exist.")
+    
+def list() -> List[str]:
+    path = os.path.join(config.directories.datasets, 'training')
+    if os.path.exists(path):
+        return sorted(os.listdir(path))
+    else:
+        return []
 
 def load(name: str) -> TrainingDataset:
     if exists(name):

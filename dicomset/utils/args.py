@@ -1,9 +1,11 @@
 from functools import wraps
 import numpy as np
+import os
 import torch
 from typing import Any, Callable, Dict, List, Tuple
 
-from ..typing import Number
+from .. import config
+from ..typing import FilePath, Number
 from .conversion import to_list, to_tuple
 from .python import isinstance_generic
 
@@ -114,10 +116,15 @@ def expand_range_arg(
             arg = arg * dim           
     return arg
 
+def resolve_filepath(filepath: FilePath) -> FilePath:
+    if filepath.startswith('files:'):
+        filepath = os.path.join(config.directories.files, filepath[6:])
+    return filepath
+
 def resolve_id(
     id: str,
-    all_ids: Callable,
-    ) -> id:
+    all_ids: List[str] | Callable[[], List[str]],
+    ) -> str:
     if id.startswith('i:'):
         idx = int(id.split(':')[1])
         ids = all_ids() 

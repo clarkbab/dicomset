@@ -1,10 +1,10 @@
 from enum import Enum, property
 import os
 import pandas as pd
-from typing import Any, Callable, Dict, List
+from typing import Any, Callable, Dict, List, Literal
 
-from .typing import DatasetID, GroupID
-from .utils import load_yaml
+from .typing import DatasetID, DirPath, GroupID
+from .utils.io import load_yaml
 
 CT_FROM_REGEXP = r'^__CT_FROM_(.*)__$'
 
@@ -12,16 +12,12 @@ class Dataset:
     def __init__(
         self,
         id: DatasetID,
-        ct_from: 'Dataset' | None = None,
+        ct_from: Literal['Dataset'] | None = None,
         ) -> None:
         self._id = str(id)
         self._ct_from = ct_from
         filepath = os.path.join(self._path, 'config.yaml')
         self._config = load_yaml(filepath) if os.path.exists(filepath) else {}
-
-    @property
-    def config(self) -> Dict[str, Any]:
-        return self._config
 
     @staticmethod
     def ensure_loaded(fn: Callable) -> Callable:
@@ -30,6 +26,10 @@ class Dataset:
                 self._load_data()
             return fn(self, *args, **kwargs)
         return wrapper
+
+    @property
+    def config(self) -> Dict[str, Any]:
+        return self._config
 
     @property
     def groups(self) -> pd.DataFrame:

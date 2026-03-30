@@ -25,6 +25,19 @@ class NiftiMrSeries(NiftiImageSeries):
             raise ValueError(f"No nifti mr series found for study '{self._study.id}'. Filepath: {basepath}, with extensions {extensions}.")
         self.__filepath = filepath
 
+    @staticmethod
+    def ensure_loaded(fn: Callable) -> Callable:
+        def wrapper(self, *args, **kwargs):
+            if not has_private_attr(self, '__data'):
+                if self.__filepath.endswith('.nii') or self.__filepath.endswith('.nii.gz'):
+                    self.__data, self.__affine = load_nifti(self.__filepath)
+                elif self.__filepath.endswith('.nrrd'):
+                    self.__data, self.__affine = load_nrrd(self.__filepath)
+                else:
+                    raise ValueError(f'Unsupported file format: {self.__filepath}')
+            return fn(self, *args, **kwargs)
+        return wrapper
+
     @property
     @ensure_loaded
     def data(self) -> MrImageArray:
@@ -39,19 +52,6 @@ class NiftiMrSeries(NiftiImageSeries):
         assert len(index) == 1
         row = index.iloc[0]
         return DicomDataset(row['dicom-dataset']).patient(row['dicom-patient-id']).study(row['dicom-study-id']).mr_series(row['dicom-series-id'])
-
-    @staticmethod
-    def ensure_loaded(fn: Callable) -> Callable:
-        def wrapper(self, *args, **kwargs):
-            if not has_private_attr(self, '__data'):
-                if self.__filepath.endswith('.nii') or self.__filepath.endswith('.nii.gz'):
-                    self.__data, self.__affine = load_nifti(self.__filepath)
-                elif self.__filepath.endswith('.nrrd'):
-                    self.__data, self.__affine = load_nrrd(self.__filepath)
-                else:
-                    raise ValueError(f'Unsupported file format: {self.__filepath}')
-            return fn(self, *args, **kwargs)
-        return wrapper
 
     @property
     @ensure_loaded

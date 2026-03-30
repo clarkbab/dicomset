@@ -1,13 +1,14 @@
-from mymi import config
 import numpy as np
 import os
 import pandas as pd
-from typing import List, Optional
+from typing import List
 
-from ..dicom import Dataset, DicomDataset, DicomPatient, PatientID, StudyID, args, ct, dicom, fov, list, mods, property, props, regions
+from .. import config
+from ..dicom import DicomDataset, DicomPatient, PatientID, StudyID
 from ..mixins import IndexMixin
 from ..patient import Patient
 from ..regions_map import RegionsMap
+from ..utils.args import arg_to_list, resolve_id
 from .study import NiftiStudy
 
 class NiftiPatient(IndexMixin, Patient):
@@ -15,17 +16,19 @@ class NiftiPatient(IndexMixin, Patient):
         self,
         dataset: 'NiftiDataset',
         id: PatientID,
-        ct_from: Optional['NiftiPatient'] = None,
+        ct_from: 'NiftiPatient' | None = None,
+        index: pd.DataFrame | None = None,
         index: Optional[pd.DataFrame] = None,
-        excluded_labels: Optional[List[str]] = None,
-        regions_map: Optional[RegionsMap] = None) -> None:
+        excluded_labels: List[str] | None = None,
+        regions_map: RegionsMap | None = None,
+        ) -> None:
         super().__init__(dataset, id, ct_from=ct_from, index=index, regions_map=regions_map)
         self.__path = os.path.join(config.directories.datasets, 'nifti', self._dataset.id, 'data', 'patients', self._id)
         if not os.path.exists(self.__path):
             raise ValueError(f"No nifti patient '{self._id}' found at path: {self.__path}")
 
     @property
-    def default_study(self) -> Optional[NiftiStudy]:
+    def default_study(self) -> NiftiStudy | None:
         studys = self.list_studies()
         return self.study(studys[-1]) if len(studys) > 0 else None
 
@@ -41,11 +44,11 @@ class NiftiPatient(IndexMixin, Patient):
 
     def has_study(
         self,
-        study_id: StudyIDs,
+        study_id: StudyID | List[StudyID],
         any: bool = False,
         **kwargs) -> bool:
-        real_ids = self.list_studies(study_id=study, **kwargs)
-        req_ids = arg_to_list(study, StudyID)
+        real_ids = self.list_studies(study_id=study_id, **kwargs)
+        req_ids = arg_to_list(study_id, StudyID)
         n_overlap = len(np.intersect1d(real_ids, req_ids))
         return n_overlap > 0 if any else n_overlap == len(req_ids)
 
@@ -57,13 +60,13 @@ class NiftiPatient(IndexMixin, Patient):
         # Right now sorting is just alphabetical, which is fine if we're using anonymous IDs,
         # as they're sorted during DICOM -> NIFTI conversion.
         ids = list(sorted(os.listdir(self.__path)))
-        if study != 'all':
-            studys = arg_to_list(study, StudyID)
+        if study_id != 'all':
+            study_ids = arg_to_list(study_id, StudyID)
             all_ids = ids.copy()
             ids = []
             for i, id in enumerate(all_ids):
                 # Check if any of the passed 'studys' references this ID.
-                for j, sid in enumerate(studys):
+                for j, sid in enumerate(study_ids):
                     if sid.startswith('i:'):
                         # Check if idx refer
                         idx = int(sid.split(':')[1])
@@ -82,8 +85,9 @@ class NiftiPatient(IndexMixin, Patient):
     def study(
         self,
         id: StudyID,
-        **kwargs) -> NiftiStudy:
-        id = handle_idx_prefix(id, self.list_studies)
+        **kwargs,
+        ) -> NiftiStudy:
+        id = resolve_id(id, self.list_studies)
         index = self._index[self._index['study-id'] == id].copy() if self._index is not None else None
 
         # Get 'ct_from' study.

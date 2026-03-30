@@ -5,6 +5,8 @@ import pydicom as dcm
 from typing import Any, Callable, Dict, List
 
 from ... import config
+from ...typing import Box3D, Image3D, Point3D, SeriesID, Size3D, Spacing3D
+from ...utils.geometry import fov
 from ...utils.python import has_private_attr
 from .series import DicomSeries
 
@@ -16,24 +18,13 @@ class DicomMrSeries(DicomSeries):
         study: 'DicomStudy',
         id: SeriesID,
         index: pd.DataFrame,
-        index_policy: Dict[str, Any]) -> None:
+        index_policy: Dict[str, Any],
+        ) -> None:
         super().__init__('mr', dataset, patient, study, id, index=index, index_policy=index_policy)
         dspath = os.path.join(config.directories.datasets, 'dicom', self._dataset.id, 'data', 'patients')
         relpaths = list(index['filepath'])
         abspaths = [os.path.join(dspath, p) for p in relpaths]
         self.__filepaths = abspaths
-
-    @property
-    @ensure_loaded
-    def data(self) -> Image3D:
-        return self.__data
-    
-    @property
-    def dicoms(self) -> List[CtDicom]:
-        # Sort MRs by z position, smallest first.
-        mr_dicoms = [dcm.dcmread(f, force=False) for f in self.__filepaths]
-        mr_dicoms = list(sorted(mr_dicoms, key=lambda m: m.ImagePositionPatient[2]))
-        return mr_dicoms
 
     @staticmethod
     def ensure_loaded(fn: Callable) -> Callable:
@@ -42,11 +33,23 @@ class DicomMrSeries(DicomSeries):
                 self.__load_data()
             return fn(self, *args, **kwargs)
         return wrapper
+    
+    @property
+    @ensure_loaded
+    def data(self) -> Image3D:
+        return self.__data
+
+    @property
+    def dicoms(self) -> List[dcm.dataset.FileDataset]:
+        # Sort MRs by z position, smallest first.
+        mr_dicoms = [dcm.dcmread(f, force=False) for f in self.__filepaths]
+        mr_dicoms = list(sorted(mr_dicoms, key=lambda m: m.ImagePositionPatient[2]))
+        return mr_dicoms
 
     @ensure_loaded
     def fov(
         self,
-        **kwargs) -> Fov3D:
+        **kwargs) -> Box3D:
         return fov(self.__data, origin=self.__origin, spacing=self.__spacing, **kwargs)
 
     def __load_data(self) -> None:

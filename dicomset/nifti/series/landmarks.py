@@ -1,23 +1,26 @@
-from mymi.transforms import LandmarkID, LandmarkIDs, LandmarksFrame, LandmarksFrameVox, Points3D, Voxels, arg_to_list, landmarks_to_data, landmarks_to_image_coords, load_csv, p_landmarks, sample
 import numpy as np
 import os
-from typing import List, Optional, Union
+import pandas as pd
+from typing import List
 
-from ...dicom import Dataset, DatasetID, DicomDataset, DicomRtStructSeries, PatientID, StudyID, config, ct, dicom, filepath, list, pd, property, props
-from .images import NiftiCtSeries, NiftiDoseSeries, NiftiSeriesID, nifti
+from ... import config
+from ...dicom import DicomDataset, DicomRtStructSeries
+from ...utils import load_csv
+from .images import NiftiCtSeries, NiftiDoseSeries, NiftiSeriesID
 from .series import NiftiSeries
 
 class NiftiLandmarksSeries(NiftiSeries):
     def __init__(
         self,
-        dataset: DatasetID,
-        patient_id: PatientID,
-        study_id: StudyID,
+        dataset: 'Dataset',
+        patient: 'Patient',
+        study: 'Study',
         id: NiftiSeriesID,
-        index: Optional[pd.DataFrame] = None,
-        ref_ct: Optional[NiftiCtSeries] = None,
-        ref_dose: Optional[NiftiDoseSeries] = None) -> None:
-        super().__init__('landmarks', dataset, pat, study, id, index=index)
+        index: pd.DataFrame | None = None,
+        ref_ct: NiftiCtSeries | None = None,
+        ref_dose: NiftiDoseSeries | None = None,
+        ) -> None:
+        super().__init__('landmarks', dataset, patient, study, id, index=index)
         self.__filepath = os.path.join(config.directories.datasets, 'nifti', self._dataset_id, 'data', 'patients', self._pat_id, self._study_id, self._modality, f'{self._id}.csv')
         if not os.path.exists(self.__filepath):
             raise ValueError(f"No NiftiLandmarksSeries '{self._id}' found for study '{self._study_id}'. Filepath: {self.__filepath}")
@@ -27,12 +30,13 @@ class NiftiLandmarksSeries(NiftiSeries):
     def data(
         self,
         points_only: bool = False,
-        landmark: LandmarkIDs = 'all',
+        landmark_id: LandmarkID | List[LandmarkID] | Literal['all'] = 'all',
         n: Optional[int] = None,
         sample_ct: bool = False,
         sample_dose: bool = False,
         use_world_coords: bool = True,
-        **kwargs) -> Union[LandmarksFrame, LandmarksFrameVox, Points3D, Voxels]:
+        **kwargs,
+        ) -> Union[LandmarksFrame, LandmarksFrameVox, Points3D, Voxels]:
 
         # Load landmarks.
         landmarks_data = load_csv(self.__filepath)

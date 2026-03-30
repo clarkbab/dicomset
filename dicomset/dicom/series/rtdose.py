@@ -1,31 +1,28 @@
-from mymi import config
 import os
 import pandas as pd
+import pydicom as dcm
 from typing import Any, Callable, Dict
 
+from ... import config
+from ...typing import Box3D, Image3D, Point3D, SeriesID, Size3D, Spacing3D
+from ...utils.dicom import from_rtdose_dicom
+from ...utils.geometry import fov
+from ...utils.python import has_private_attr
 from .series import DicomSeries
 
 class DicomRtDoseSeries(DicomSeries):
     def __init__(
         self,
         dataset: 'DicomDataset',
-        pat: 'DicomPatient',
+        patient: 'DicomPatient',
         study: 'DicomStudy',
         id: SeriesID,
         index: pd.Series,
-        index_policy: Dict[str, Any]) -> None:
-        super().__init__('rtdose', dataset, pat, study, id, index=index, index_policy=index_policy)
+        index_policy: Dict[str, Any],
+        ) -> None:
+        super().__init__('rtdose', dataset, patient, study, id, index=index, index_policy=index_policy)
         dspath = os.path.join(config.directories.datasets, 'dicom', self._dataset.id, 'data', 'patients')
         self.__filepath = os.path.join(dspath, index['filepath'])
-
-    @property
-    @ensure_loaded
-    def data(self) -> DoseImageArray:
-        return self.__data
-
-    @property
-    def dicom(self) -> RtDoseDicom:
-        return dcm.dcmread(self.__filepath)
 
     @staticmethod
     def ensure_loaded(fn: Callable) -> Callable:
@@ -34,6 +31,21 @@ class DicomRtDoseSeries(DicomSeries):
                 self.__load_data()
             return fn(self, *args, **kwargs)
         return wrapper
+
+    @property
+    @ensure_loaded
+    def data(self) -> Image3D:
+        return self.__data
+
+    @property
+    def dicom(self) -> dcm.dataset.FileDataset:
+        return dcm.dcmread(self.__filepath)
+
+    @ensure_loaded
+    def fov(
+        self,
+        **kwargs) -> Box3D:
+        return fov(self.__data, origin=self.__origin, spacing=self.__spacing, **kwargs)
 
     def __load_data(self) -> None:
         self.__data, self.__spacing, self.__origin = from_rtdose_dicom(self.dicom)

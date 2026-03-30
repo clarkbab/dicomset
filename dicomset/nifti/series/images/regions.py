@@ -1,23 +1,28 @@
-from mymi.regions import regions_to_list
 import numpy as np
 import os
-from typing import List, Literal, Tuple
+import pandas as pd
+from typing import List, Literal
 
-from ....dicom import Dataset, DicomDataset, DicomRtStructSeries, SeriesID, config, dicom, list, pd, property, regions
+from .... import config
+from ....dicom import DicomDataset, DicomRtStructSeries, SeriesID
 from ....regions_map import RegionsMap
+from ....typing import RegionID, SeriesID
+from ....utils.args import alias_kwargs, arg_to_list
+from ....utils.io import load_nifti, load_nrrd
+from ....utils.regions import regions_to_list
 from .image import NiftiImageSeries
 
 class NiftiRegionsSeries(NiftiImageSeries):
     def __init__(
         self,
         dataset: 'NiftiDataset',
-        pat: 'NiftiPatient',
+        patient: 'NiftiPatient',
         study: 'NiftiStudy',
         id: SeriesID,
         index: pd.DataFrame | None = None,
         regions_map: RegionsMap | None = None,
         ) -> None:
-        super().__init__('regions', dataset, pat, study, id, index=index)
+        super().__init__('regions', dataset, patient, study, id, index=index)
         extensions = ['.nii', '.nii.gz', '.nrrd']
         dirpath = os.path.join(config.directories.datasets, 'nifti', self._dataset.id, 'data', 'patients', self._pat.id, self._study.id, self._modality, self._id)
         if not os.path.exists(dirpath):
@@ -30,11 +35,11 @@ class NiftiRegionsSeries(NiftiImageSeries):
     ])
     def data(
         self,
-        regions: Region | List[Region] | Literal['all'] = 'all',
+        regions: RegionID | List[RegionID] | Literal['all'] = 'all',
         regions_ignore_missing: bool = True,
         return_regions: bool = False,
         **kwargs,
-        ) -> LabelVolumeBatch | Tuple[LabelVolumeBatch, List[Region]]:
+        ) -> LabelVolumeBatch | Tuple[LabelVolumeBatch, List[RegionID]]:
         regions = regions_to_list(regions, literals={ 'all': self.list_regions })
 
         # Get region names.
@@ -83,10 +88,10 @@ class NiftiRegionsSeries(NiftiImageSeries):
 
     def filepaths(
         self,
-        regions: Region | List[Region],
+        region: RegionID | List[RegionID],
         regions_ignore_missing: bool = True,
         ) -> List[FilePath]:
-        regions = arg_to_list(regions, str)
+        regions = arg_to_list(region, str)
         if not regions_ignore_missing and not self.has_region(regions):
             raise ValueError(f'Regions {regions} not found in series {self.id}.')
         regions = [r for r in regions if self.has_region(r)]  # Filter out missing regions.
@@ -111,8 +116,9 @@ class NiftiRegionsSeries(NiftiImageSeries):
     @alias_kwargs(('um', 'use_mapping'))
     def list_regions(
         self,
-        region: RegionIDs = 'all',
-        use_mapping: bool = True) -> List[Region]:
+        region_id: RegionID | List[RegionID] | Literal['all'] = 'all',
+        use_mapping: bool = True,
+        ) -> List[RegionID]:
         # Load regions from filenames.
         image_extensions = ['.nii', '.nii.gz', '.nrrd']
         ids = os.listdir(self.__dirpath)
@@ -123,9 +129,9 @@ class NiftiRegionsSeries(NiftiImageSeries):
             ids = [self.__regions_map.map_region(i) if self.__regions_map is not None else i for i in ids]
 
         # Filter on 'only'.
-        if region != 'all':
-            regions = regions_to_list(region)
-            ids = [r for r in ids if r in regions]
+        if region_id != 'all':
+            region_ids = regions_to_list(region_id)
+            ids = [r for r in ids if r in region_ids]
 
         # Sort regions.
         ids = list(sorted(ids))

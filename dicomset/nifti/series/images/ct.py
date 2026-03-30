@@ -1,20 +1,25 @@
-from mymi.geometry import CtImageArray, NiftiSeriesID, fov, load_nifti, load_nrrd, nifti, nrrd
 import numpy as np
 import os
+import pandas as pd
 
-from ....dicom import Affine, Callable, Dataset, DicomCtSeries, DicomDataset, Fov3D, Optional, Point3D, affine_origin, affine_spacing, args, config, ct, dicom, filepath, has_private_attr, pd, property, props
+from ... import config
+from ...dicom import DicomCtSeries, DicomDataset
+from ...typing import AffineMatrix3D, Point3D, SeriesID, Size3D, Spacing3D
+from ...utils.io import load_nifti, load_nrrd
+from ...utils.python import has_private_attr
+from ...utils.geometry import fov, affine_origin, affine_spacing
 from .image import NiftiImageSeries
 
 class NiftiCtSeries(NiftiImageSeries):
     def __init__(
         self,
         dataset: 'NiftiDataset',
-        pat: 'NiftiPatient',
+        patient: 'NiftiPatient',
         study: 'NiftiStudy',
-        id: NiftiSeriesID,
-        index: Optional[pd.DataFrame] = None,
+        id: SeriesID,
+        index: pd.DataFrame | None = None
         ) -> None:
-        super().__init__('ct', dataset, pat, study, id, index=index)
+        super().__init__('ct', dataset, patient, study, id, index=index)
         extensions = ['.nii', '.nii.gz', '.nrrd']
         basepath = os.path.join(config.directories.datasets, 'nifti', self._dataset.id, 'data', 'patients', self._pat.id, self._study.id, self._modality, self._id)
         filepath = None
@@ -25,26 +30,6 @@ class NiftiCtSeries(NiftiImageSeries):
         if filepath is None:
             raise ValueError(f"No CT series '{self._id}' found for study '{self._study.id}'. Filepath: {basepath}, with extensions {extensions}.")
         self.__filepath = filepath
-
-    @property
-    @ensure_loaded
-    def affine(self) -> Affine:
-        return self.__affine
-
-    @property
-    @ensure_loaded
-    def data(self) -> CtImageArray:
-        return self.__data
-
-    @property
-    def dicom(self) -> DicomCtSeries:
-        if self._index is None:
-            raise ValueError(f"Dataset did not originate from dicom (no 'index.csv').")
-        index = self._index[['dataset', 'patient-id', 'study-id', 'series-id', 'modality', 'dicom-dataset', 'dicom-patient-id', 'dicom-study-id', 'dicom-series-id']]
-        index = index[(index['dataset'] == self._dataset.id) & (index['patient-id'] == self._pat.id) & (index['study-id'] == self._study.id) & (index['series-id'] == self._id) & (index['modality'] == 'ct')].drop_duplicates()
-        assert len(index) == 1
-        row = index.iloc[0]
-        return DicomDataset(row['dicom-dataset']).patient(row['dicom-patient-id']).study(row['dicom-study-id']).ct_series(row['dicom-series-id'])
 
     @staticmethod
     def ensure_loaded(fn: Callable) -> Callable:
@@ -59,10 +44,31 @@ class NiftiCtSeries(NiftiImageSeries):
             return fn(self, *args, **kwargs)
         return wrapper
 
+    @property
+    @ensure_loaded
+    def affine(self) -> AffineMatrix3D:
+        return self.__affine
+
+    @property
+    @ensure_loaded
+    def data(self) -> Image3D:
+        return self.__data
+
+    @property
+    def dicom(self) -> DicomCtSeries:
+        if self._index is None:
+            raise ValueError(f"Dataset did not originate from dicom (no 'index.csv').")
+        index = self._index[['dataset', 'patient-id', 'study-id', 'series-id', 'modality', 'dicom-dataset', 'dicom-patient-id', 'dicom-study-id', 'dicom-series-id']]
+        index = index[(index['dataset'] == self._dataset.id) & (index['patient-id'] == self._pat.id) & (index['study-id'] == self._study.id) & (index['series-id'] == self._id) & (index['modality'] == 'ct')].drop_duplicates()
+        assert len(index) == 1
+        row = index.iloc[0]
+        return DicomDataset(row['dicom-dataset']).patient(row['dicom-patient-id']).study(row['dicom-study-id']).ct_series(row['dicom-series-id'])
+
     @ensure_loaded
     def fov(
         self,
-        **kwargs) -> Fov3D:
+        **kwargs,
+        ) -> Box3D:
         return fov(self.__data, self.__affine, **kwargs)
 
     @property
@@ -72,12 +78,12 @@ class NiftiCtSeries(NiftiImageSeries):
 
     @property
     @ensure_loaded
-    def size(self) -> np.ndarray:
+    def size(self) -> Size3D:
         return self.__data.shape
 
     @property
     @ensure_loaded
-    def spacing(self) -> np.ndarray:
+    def spacing(self) -> Spacing3D:
         return affine_spacing(self.__affine)
 
     def __str__(self) -> str:

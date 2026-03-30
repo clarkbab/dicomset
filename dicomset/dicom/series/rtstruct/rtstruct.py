@@ -1,13 +1,18 @@
 import collections
-from mymi import config as conf, regions
-from mymi import logging
-from mymi.regions import regions_to_list
+import numpy as np
 import os
+import pydicom as dcm
 import pandas as pd
-from typing import Any, Dict, List, Optional, Tuple, Union
+import re
+from typing import Any, Dict, List, Tuple
 
-from ....regions_map import RegionsMap, SeriesID, np, re
-from ..ct import CtDicom, DicomCtSeries, config, dcm, dicom
+from .... import config
+from ....regions_map import RegionsMap
+from ....typing import DicomCtSeries, LandmarksData, SeriesID
+from ....utils.args import arg_to_list
+from ....utils.conversion import to_image_coords, to_numpy
+from ....utils.regions import regions_to_list
+from ..ct import DicomCtSeries
 from ..series import DicomSeries
 from .rtstruct_converter import RtStructConverter
 
@@ -17,22 +22,23 @@ class DicomRtStructSeries(DicomSeries):
     def __init__(
         self,
         dataset: 'DicomDataset',
-        pat: 'DicomPatient',
+        patient: 'DicomPatient',
         study: 'DicomStudy',
         id: SeriesID,
         ref_ct: DicomCtSeries,
         index: pd.Series,
         index_policy: Dict[str, Any],
-        config: Optional[Dict[str, Any]] = None,
-        regions_map: Optional[RegionsMap] = None) -> None:
-        super().__init__('rtstruct', dataset, pat, study, id, config=config)
-        self.__filepath = os.path.join(conf.directories.datasets, 'dicom', dataset.id, 'data', 'patients', index['filepath'])
+        config: Dict[str, Any] | None = None,
+        regions_map: RegionsMap | None = None,
+        ) -> None:
+        super().__init__('rtstruct', dataset, patient, study, id, config=config)
+        self.__filepath = os.path.join(config.directories.datasets, 'dicom', dataset.id, 'data', 'patients', index['filepath'])
         self.__modality = 'rtstruct'
         self.__ref_ct = ref_ct
         self.__regions_map = regions_map
 
     @property
-    def dicom(self) -> CtDicom:
+    def dicom(self) -> dcm.dataset.FileDataset:
         return dcm.dcmread(self.__filepath)
 
     @property
@@ -41,23 +47,24 @@ class DicomRtStructSeries(DicomSeries):
 
     def has_landmark(
         self,
-        landmark: LandmarkIDs,
+        landmark_id: LandmarkID | List[LandmarkID],
         any: bool = False,
-        **kwargs) -> bool:
+        **kwargs,
+        ) -> bool:
         all_ids = self.list_landmarks(**kwargs)
-        landmarks = arg_to_list(landmark, LandmarkID, literals={ 'all': all_ids })
-        n_overlap = len(np.intersect1d(landmarks, all_ids))
-        return n_overlap > 0 if any else n_overlap == len(landmarks)
+        landmark_ids = arg_to_list(landmark_id, str, literals={ 'all': all_ids })
+        n_overlap = len(np.intersect1d(landmark_ids, all_ids))
+        return n_overlap > 0 if any else n_overlap == len(landmark_ids)
 
     def has_region(
         self,
-        region: RegionIDs,
+        region_id: RegionID | List[RegionID],
         any: bool = False,
         **kwargs) -> bool:
         all_ids = self.list_regions(**kwargs)
-        regions = arg_to_list(region, RegionID)
-        n_overlap = len(np.intersect1d(regions, all_ids))
-        return n_overlap > 0 if any else n_overlap == len(regions)
+        region_ids = arg_to_list(region_id, str)
+        n_overlap = len(np.intersect1d(region_ids, all_ids))
+        return n_overlap > 0 if any else n_overlap == len(region_ids)
 
     @property
     def landmark_regexp(self) -> str:
@@ -69,17 +76,18 @@ class DicomRtStructSeries(DicomSeries):
     def landmarks_data(
         self,
         points_only: bool = False,
-        landmark: LandmarkIDs = 'all',
+        landmark_id: LandmarkID | List[LandmarkID] = 'all',
         landmark_regexp: Optional[str] = None,
         n: Optional[int] = None,
         show_ids: bool = True,
         use_world_coords: bool = True,
-        **kwargs) -> Optional[Union[LandmarksFrame, LandmarksFrameVox, Points3D, Voxels]]:
+        **kwargs,
+        ) -> LandmarksData | Points3D | Voxels:
         # Load landmarks.
-        landmarks = self.list_landmarks(landmark=landmark, landmark_regexp=landmark_regexp, **kwargs)
+        landmark_ids = self.list_landmarks(landmark_id=landmark_id, landmark_regexp=landmark_regexp, **kwargs)
         rtstruct_dicom = self.dicom
         lms = []
-        for l in landmarks:
+        for l in landmark_ids:
             lm = RtStructConverter.get_roi_landmark(rtstruct_dicom, l)
             lms.append(lm)
         if len(lms) == 0:
@@ -87,10 +95,10 @@ class DicomRtStructSeries(DicomSeries):
         
         # Convert to DataFrame.
         lms = np.vstack(lms)
-        landmarks_data = pd.DataFrame(lms, index=landmarks).reset_index()
+        landmarks_data = pd.DataFrame(lms, index=landmark_ids).reset_index()
         landmarks_data = landmarks_data.rename(columns={ 'index': 'landmark-id' })
         if not use_world_coords:
-            landmarks_data = landmarks_to_image_coords(landmarks_data, self.ref_ct.spacing, self.ref_ct.origin)
+            landmarks_data = to_image_coords(landmarks_data, self.ref_ct.affine)
 
         # Filter by number of rows.
         if n is not None:
@@ -118,21 +126,23 @@ class DicomRtStructSeries(DicomSeries):
         landmarks_data = landmarks_data.sort_values(sort_cols)
 
         if points_only:
-            return landmarks_to_data(landmarks_data)
+            return to_numpy(landmarks_data[list(range(3))])
         else:
             return landmarks_data
 
     def list_landmarks(
         self,
-        landmark: LandmarkIDs = 'all', 
-        landmark_regexp: Optional[str] = None) -> List[LandmarkID]:
+        landmark_id: LandmarkID | List[LandmarkID] = 'all',
+        landmark_regexp: str | None = None,
+        ) -> List[LandmarkID]:
         if landmark_regexp is None:
             landmark_regexp = self.landmark_regexp
         ids = self.list_regions(filter_landmarks=False)
         # Both landmarks/regions are stored in rtstruct, but we only want objects like 'Marker 1' for example.
         ids = [l for l in ids if re.match(landmark_regexp, l)]
-        if landmark != 'all':
-            ids = [i for i in ids if i in regions_to_list(landmark)]
+        if landmark_id != 'all':
+            landmark_ids = regions_to_list(landmark_id)
+            ids = [i for i in ids if i in landmark_ids]
         return ids
 
     # 1. Should return only regions when landmark_regexp is None, load regexp from config or default.
@@ -141,11 +151,12 @@ class DicomRtStructSeries(DicomSeries):
     def list_regions(
         self,
         filter_landmarks: bool = True,
-        landmark_regexp: Optional[str] = None,
-        region: RegionIDs = 'all',
+        landmark_regexp: str | None = None,
+        region_id: RegionID | List[RegionID] | Literal['all'] = 'all',
         return_numbers: bool = False,
         return_unmapped: bool = False,
-        use_mapping: bool = True) -> Union[List[RegionID], Tuple[List[RegionID], List[RegionID]], Tuple[List[RegionID], List[int]], Tuple[List[RegionID], List[RegionID], List[int]]]:
+        use_mapping: bool = True,
+        ) -> List[RegionID] | Tuple[List[RegionID], List[RegionID]] | Tuple[List[RegionID], List[int]] | Tuple[List[RegionID], List[RegionID], List[int]] | List[int]:
         # Get the landmark regexp - used to filter out landmarks.
         if filter_landmarks and landmark_regexp is None:
             landmark_regexp = self.landmark_regexp
@@ -279,7 +290,7 @@ class DicomRtStructSeries(DicomSeries):
             # Load region using unmapped name, store using mapped name.
             for m, u in zip(mapped_ids, unmapped_ids):
                 # Multiple regions could be mapped to the same region, e.g. Chestwall_L/R -> Chestwall.
-                combine_ids = arg_to_list(u, RegionID)
+                combine_ids = arg_to_list(u, str)
                 labels = []
                 for c in combine_ids:
                     rdata = RtStructConverter.get_regions_data(rtstruct_dicom, c, self.ref_ct.size, self.ref_ct.spacing, self.ref_ct.origin)

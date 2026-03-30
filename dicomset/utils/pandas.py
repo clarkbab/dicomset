@@ -38,3 +38,14 @@ def append_row(
         df = df.astype(new_df.dtypes.to_dict())
     
     return df
+
+def concat_dataframes(
+    dfs: List[pd.DataFrame],
+    ) -> pd.DataFrame:
+    # Filter empty dataframes.
+    dfs = [df for df in dfs if len(df) > 0]
+
+    # Perform concatenation.
+    df = pd.concat(dfs, axis=0)
+
+    return df

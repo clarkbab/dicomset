@@ -5,5 +5,6 @@ class NiftiImageSeries(NiftiSeries):
     def __init__(
         self,
         *args,
-        **kwargs) -> None:
+        **kwargs,
+        ) -> None:
         super().__init__(*args, **kwargs)

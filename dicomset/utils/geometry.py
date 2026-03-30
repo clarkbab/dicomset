@@ -1,7 +1,7 @@
 import numpy as np
 import scipy
 
-from ..typing import AffineMatrix, Box, BoxTensor, Image, LabelImage, Pixel, Point, Size, Voxel
+from ..typing import AffineMatrix, Box, Image, LabelImage, Pixel, Point, Size, Spacing, SpatialDim, Voxel
 
 def affine_origin(
     affine: AffineMatrix,
@@ -27,6 +27,20 @@ def affine_spacing(
 
     return spacing
 
+def com(
+    data: Image,
+    affine: AffineMatrix | None = None,
+    ) -> Point | Pixel | Voxel:
+    if data.sum() == 0:
+        return None 
+
+    # Compute the centre of mass.
+    com = scipy.ndimage.center_of_mass(data)
+    if affine is not None:
+        com = to_world_coords(com, affine)
+
+    return com
+
 def create_affine(
     spacing: Spacing,
     origin: Point,
@@ -51,20 +65,6 @@ def create_eye(
     dim: SpatialDim,
     ) -> np.ndarray:
     return np.eye(dim + 1)
-
-def com(
-    data: Image,
-    affine: AffineMatrix | None = None,
-    ) -> Point | Pixel | Voxel:
-    if data.sum() == 0:
-        return None 
-
-    # Compute the centre of mass.
-    com = scipy.ndimage.center_of_mass(data)
-    if affine is not None:
-        com = to_world_coords(com, affine)
-
-    return com
 
 def foreground_fov(
     data: LabelImage,
@@ -119,7 +119,7 @@ def foreground_fov_width(
 def fov(
     size: Size,
     affine: AffineMatrix | None = None,
-    ) -> BoxTensor:
+    ) -> Box:
     # Get fov in voxels.
     n_dims = len(size)
     fov_vox = np.stack([

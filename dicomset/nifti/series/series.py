@@ -1,10 +1,8 @@
-from typing import Literal, Optional
 
-from ...dicom import DicomSeries, args, ct, dicom, property, regions
+from ...dicom import DicomSeries
 from ...mixins import IndexMixin
 from ...series import Series
-
-NiftiModality = Literal['ct', 'dose', 'landmarks', 'mr', 'plan', 'regions']
+from ...typing import NiftiModality
 
 NIFTI_DICOM_MODALITY_MAP = dict(
     ct='ct',
@@ -20,13 +18,14 @@ class NiftiSeries(IndexMixin, Series):
         self,
         modality: NiftiModality,
         *args,
-        **kwargs) -> None:
+        **kwargs,
+        ) -> None:
         self._modality = modality
         self.__dicom_modality = NIFTI_DICOM_MODALITY_MAP[self._modality]
         super().__init__(*args, **kwargs)
 
     @property
-    def date(self) -> Optional[str]:
+    def date(self) -> str | None:
         # May implement in dicom -> nifti processing in future.
         return None
 

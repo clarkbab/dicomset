@@ -8,13 +8,6 @@ from .series import *
 from .study import *
 from .utils import *
 
-def list() -> List[str]:
-    path = os.path.join(config.directories.datasets, 'nifti')
-    if os.path.exists(path):
-        return sorted(os.listdir(path))
-    else:
-        return []
-
 def create(name: str) -> NiftiDataset:
     ds_path = os.path.join(config.directories.datasets, 'nifti', name)
     os.makedirs(ds_path, exist_ok=True)
@@ -30,10 +23,17 @@ def destroy(
             lambda: shutil.rmtree(ds_path),
             f"Destroying nifti dataset '{name}' at {ds_path}."
         )
-    
+
 def exists(name: str) -> bool:
     ds_path = os.path.join(config.directories.datasets, 'nifti', name)
     return os.path.exists(ds_path)
+    
+def list() -> List[str]:
+    path = os.path.join(config.directories.datasets, 'nifti')
+    if os.path.exists(path):
+        return sorted(os.listdir(path))
+    else:
+        return []
 
 def load(name: str) -> NiftiDataset:
     if exists(name):

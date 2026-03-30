@@ -5,7 +5,7 @@ import pydicom as dcm
 from typing import Any, Callable, Dict, List
 
 from ... import config
-from ...typing import AffineMatrix, Box3D, Point3D, Size3D, Spacing3D
+from ...typing import AffineMatrix3D, Box3D, Image3D, Point3D, SeriesID, Size3D, Spacing3D
 from ...utils.dicom import from_ct_dicom
 from ...utils.python import has_private_attr
 from ...utils.geometry import affine_origin, affine_spacing, fov
@@ -19,29 +19,13 @@ class DicomCtSeries(DicomSeries):
         study: 'DicomStudy',
         id: SeriesID,
         index: pd.DataFrame,
-        index_policy: Dict[str, Any]) -> None:
+        index_policy: Dict[str, Any],
+        ) -> None:
         super().__init__('ct', dataset, patient, study, id, index=index, index_policy=index_policy)
         dspath = os.path.join(config.directories.datasets, 'dicom', self._dataset.id, 'data', 'patients')
         relpaths = list(index['filepath'])
         abspaths = [os.path.join(dspath, p) for p in relpaths]
         self.__filepaths = abspaths
-
-    @property
-    def affine(self) -> AffineMatrix:
-        return self.__affine
-
-    @property
-    @ensure_loaded
-    def data(self) -> np.ndarray:
-        return self.__data
-    
-    # Could return 'CTFile' objects - this would align with other series, but would create a lot of objects in memory.
-    @property
-    def dicoms(self) -> List[CtDicom]:
-        # Sort CTs by z position, smallest first.
-        ct_dicoms = [dcm.dcmread(f, force=False) for f in self.__filepaths]
-        ct_dicoms = list(sorted(ct_dicoms, key=lambda c: c.ImagePositionPatient[2]))
-        return ct_dicoms
 
     @staticmethod
     def ensure_loaded(fn: Callable) -> Callable:
@@ -50,6 +34,23 @@ class DicomCtSeries(DicomSeries):
                 self.__load_data()
             return fn(self, *args, **kwargs)
         return wrapper
+
+    @property
+    def affine(self) -> AffineMatrix3D:
+        return self.__affine
+
+    @property
+    @ensure_loaded
+    def data(self) -> Image3D:
+        return self.__data
+    
+    # Could return 'CTFile' objects - this would align with other series, but would create a lot of objects in memory.
+    @property
+    def dicoms(self) -> List[dcm.dataset.FileDataset]:
+        # Sort CTs by z position, smallest first.
+        ct_dicoms = [dcm.dcmread(f, force=False) for f in self.__filepaths]
+        ct_dicoms = list(sorted(ct_dicoms, key=lambda c: c.ImagePositionPatient[2]))
+        return ct_dicoms
 
     @property
     def filepath(self) -> str:

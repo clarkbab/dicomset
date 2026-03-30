@@ -1,0 +1,111 @@
+import ast
+import os
+import nibabel as nib
+import nrrd
+import pandas as pd
+from typing import Any, Dict, List, Tuple 
+import yaml
+
+from ..typing import AffineMatrix3D, FilePath, Image3D
+from .args import arg_to_list, resolve_filepath
+from .geometry import create_eye
+
+def assert_writeable(filepath: FilePath | List[FilePath]) -> None:
+    filepaths = arg_to_list(filepath, str)
+    for f in filepaths:
+        f = resolve_filepath(f)
+        if os.path.exists(f):
+            try:
+                open(f, 'a')
+            except (OSError, IOError):
+                raise PermissionError(f"File '{f}' is open or read-only, cannot overwrite.")
+
+def load_csv(
+    filepath: FilePath,
+    exists_only: bool = False,
+    filters: Dict[str, Any] = {},
+    map_cols: Dict[str, str] = {},
+    map_types: Dict[str, Any] = {},
+    parse_cols: str | List[str] = [],
+    **kwargs,
+    ) -> pd.DataFrame | bool:
+    filepath = resolve_filepath(filepath)
+    if os.path.exists(filepath):
+        if exists_only:
+            return True
+    else:
+        if exists_only:
+            return False
+        else:
+            raise ValueError(f"CSV at filepath '{filepath}' not found.")
+
+    # Load CSV.
+    map_types['patient-id'] = str
+    map_types['study-id'] = str
+    map_types['series-id'] = str
+    df = pd.read_csv(filepath, dtype=map_types, **kwargs)
+
+    # Map column names.
+    df = df.rename(columns=map_cols)
+
+    # Evaluate columns as literals.
+    parse_cols = arg_to_list(parse_cols, str)
+    for c in parse_cols:
+        df[c] = df[c].apply(lambda s: ast.literal_eval(s))
+
+    # Apply filters.
+    for k, v in filters.items():
+        df = df[df[k] == v]
+
+    return df
+
+def load_nifti(
+    filepath: FilePath,
+    ) -> Tuple[Image3D, AffineMatrix3D]:
+    filepath = resolve_filepath(filepath)
+    assert filepath.endswith('.nii') or filepath.endswith('.nii.gz'), "Filepath must end with .nii or .nii.gz"
+    img = nib.load(filepath)
+    data = img.get_fdata()
+    affine = img.affine
+    return data, affine
+
+def load_nrrd(
+    filepath: FilePath,
+    ) -> Tuple[Image3D, AffineMatrix3D]:
+    filepath = resolve_filepath(filepath)
+    data, header = nrrd.read(filepath)
+    affine = create_eye(3)
+    affine[:3, :3] = header['space directions']
+    affine[:3, 3] = header['space origin']
+    affine[3, 3] = 1.0
+    return data, affine
+
+def load_yaml(filepath: FilePath) -> Any:
+    filepath = resolve_filepath(filepath)
+    with open(filepath, 'r') as f:
+        return yaml.safe_load(f)
+
+def save_csv(
+    data: pd.DataFrame,
+    filepath: str,
+    index: bool = False,
+    overwrite: bool = True,
+    ) -> None:
+    filepath = resolve_filepath(filepath)
+    if os.path.exists(filepath):
+        if overwrite:
+            os.makedirs(os.path.dirname(filepath), exist_ok=True)
+            data.to_csv(filepath, index=index)
+        else:
+            raise ValueError(f"File '{filepath}' already exists, use overwrite=True.")
+    else:
+        os.makedirs(os.path.dirname(filepath), exist_ok=True)
+        data.to_csv(filepath, index=index)
+
+def save_yaml(
+    data: Any,
+    filepath: FilePath,
+    ) -> None:
+    filepath = resolve_filepath(filepath)
+    with open(filepath, 'w') as f:
+        yaml.dump(data, f)

@@ -3,14 +3,16 @@ from datetime import datetime
 import numpy as np
 import os
 import pydicom as dcm
+from typing import List, Tuple
 
-from ..affine import create_affine
-from ..maths import round
-from ..typing import AffineMatrix3D, DirPath, FilePath, Image2D, Image3D
+from .geometry import create_affine
+from ..typing import AffineMatrix3D, DirPath, FilePath, Image2D, Image3D, PatientID, SeriesID, StudyID
+from ..utils.geometry import affine_origin, affine_spacing
+from ..utils.maths import round
 
 def from_ct_dicom(
     # DirPath | List[CtDicom] -> (CtVolume, Affine), FilePath -> CtSlice.
-    cts: FilePath | DirPath | List[CtDicom],
+    cts: FilePath | DirPath | List[dcm.dataset.FileDataset],
     check_orientation: bool = True,
     check_xy_positions: bool = True,
     check_z_spacing: bool = True,
@@ -35,14 +37,14 @@ def from_ct_dicom(
     # Make sure x/y positions are the same for all slices.
     if check_xy_positions:
         xy_poses = np.array([c.ImagePositionPatient[:2] for c in cts])
-        xy_poses = round(xy_poses, tol=TOLERANCE_MM)
+        xy_poses = round(xy_poses, tol=1e-6)
         xy_poses = np.unique(xy_poses, axis=0)
         if xy_poses.shape[0] > 1:
             raise ValueError(f"CT slices have inconsistent 'ImagePositionPatient' x/y values: {xy_poses}.")
 
     # Get z spacings.
     z_pos = list(sorted([c.ImagePositionPatient[2] for c in cts]))
-    z_pos = round(z_pos, tol=TOLERANCE_MM)
+    z_pos = round(z_pos, tol=1e-6)
     z_diffs = np.diff(z_pos)
     z_freqs = Counter(z_diffs)
     if check_z_spacing and len(z_freqs.keys()) > 1:
@@ -88,16 +90,39 @@ def from_ct_dicom(
 
     return data, affine
 
-def to_ct_dicoms(
-    data: CtImageArray, 
-    spacing: Spacing3D,
-    origin: Point3D,
-    pat: PatientID,
-    study: StudyID,
-    pat_name: Optional[str] = None,
-    series: Optional[SeriesID] = None) -> List[CtDicom]:
-    pat_name = pat_id if pat_name is None else pat_name
-    series = f'CT ({study})' if series is None else series
+def from_rtdose_dicom(
+    rtdose: FilePath | dcm.dataset.FileDataset | None = None,
+    ) -> Tuple[Image3D, AffineMatrix3D]:
+    # Load data.
+    if isinstance(rtdose, str):
+        rtdose = dcm.dcmread(rtdose)
+    data = np.transpose(rtdose.pixel_array)
+    data = rtdose.DoseGridScaling * data
+
+    # Create affine.
+    spacing_xy = rtdose.PixelSpacing 
+    z_diffs = np.diff(rtdose.GridFrameOffsetVector)
+    z_diffs = round(z_diffs, tol=TOLERANCE_MM)
+    z_diffs = np.unique(z_diffs)
+    if len(z_diffs) != 1:
+        raise ValueError(f"Slice z spacings for RtDoseDicom not equal: {z_diffs}.")
+    spacing_z = z_diffs[0]
+    spacing = tuple((float(s) for s in np.append(spacing_xy, spacing_z)))
+    origin = tuple(float(o) for o in rtdose.ImagePositionPatient)
+    affine = create_affine(spacing, origin)
+
+    return data, affine
+
+def to_ct_dicom(
+    data: Image3D, 
+    affine: AffineMatrix3D,
+    patient_id: PatientID,
+    study_id: StudyID,
+    patient_name: str | None = None,
+    series_id: SeriesID | None = None,
+    ) -> List[dcm.dataset.FileDataset]:
+    patient_name = patient_id if patient_name is None else patient_name
+    series_id = f'CT ({study_id})' if series_id is None else series_id
 
     # Data settings.
     if data.min() < -1024:
@@ -161,24 +186,26 @@ def to_ct_dicoms(
         ct_dicom.SpecificCharacterSet = 'ISO_IR 100'
 
         # Add patient info.
-        ct_dicom.PatientID = pat_id
-        ct_dicom.PatientName = pat_name
+        ct_dicom.PatientID = patient_id
+        ct_dicom.PatientName = patient_name
 
         # Add study info.
         ct_dicom.StudyDate = dt.strftime(DICOM_DATE_FORMAT)
-        ct_dicom.StudyDescription = study
+        ct_dicom.StudyDescription = study_id
         ct_dicom.StudyInstanceUID = study_uid
-        ct_dicom.StudyID = study
+        ct_dicom.StudyID = study_id
         ct_dicom.StudyTime = dt.strftime(DICOM_TIME_FORMAT)
 
         # Add series info.
         ct_dicom.SeriesDate = dt.strftime(DICOM_DATE_FORMAT)
-        ct_dicom.SeriesDescription = series,
+        ct_dicom.SeriesDescription = series_id
         ct_dicom.SeriesInstanceUID = series_uid
         ct_dicom.SeriesNumber = 0
         ct_dicom.SeriesTime = dt.strftime(DICOM_TIME_FORMAT)
 
         # Add data.
+        spacing = affine_spacing(affine)
+        origin = affine_origin(affine)
         ct_dicom.BitsAllocated = n_bits_alloc
         ct_dicom.BitsStored = n_bits_stored
         ct_dicom.FrameOfReferenceUID = frame_of_reference_uid
@@ -202,3 +229,131 @@ def to_ct_dicoms(
         ct_dicoms.append(ct_dicom)
 
     return ct_dicoms
+
+def to_rtdose_dicom(
+    data: Image3D, 
+    affine: AffineMatrix3D,
+    grid_scaling: float = 1e-3,
+    ref_ct: FilePath | dcm.dataset.FileDataset | None = None,
+    rtdose_template: FilePath | dcm.dataset.FileDataset | None = None,
+    series_description: str | None = None,
+    ) -> dcm.dataset.FileDataset:
+    if rtdose_template is not None:
+        # Start from the template.
+        if isinstance(rtdose_template, str):
+            rtdose_template = dcm.dcmread(rtdose_template)
+        rtdose_dicom = rtdose_template.copy()
+
+        # Overwrite sop ID.
+        file_meta = rtdose_dicom.file_meta.copy()
+        file_meta.MediaStorageSOPInstanceUID = dcm.uid.generate_uid()
+        rtdose_dicom.file_meta = file_meta
+        rtdose_dicom.SOPInstanceUID = file_meta.MediaStorageSOPInstanceUID
+    else:
+        # Create rtdose from scratch.
+        file_meta = dcm.dataset.Dataset()
+        file_meta.FileMetaInformationGroupLength = 204
+        file_meta.FileMetaInformationVersion = b'\x00\x01'
+        file_meta.ImplementationClassUID = dcm.uid.PYDICOM_IMPLEMENTATION_UID
+        file_meta.MediaStorageSOPClassUID = dcm.uid.RTDoseStorage
+        file_meta.MediaStorageSOPInstanceUID = dcm.uid.generate_uid()
+        file_meta.TransferSyntaxUID = dcm.uid.ImplicitVRLittleEndian
+
+        rtdose_dicom = dcm.dataset.FileDataset('filename', {}, file_meta=file_meta, preamble=b'\0' * 128)
+        rtdose_dicom.BitsAllocated = 32
+        rtdose_dicom.BitsStored = 32
+        rtdose_dicom.DoseGridScaling = grid_scaling
+        rtdose_dicom.DoseSummationType = 'PLAN'
+        rtdose_dicom.DoseType = 'PHYSICAL'
+        rtdose_dicom.DoseUnits = 'GY'
+        rtdose_dicom.HighBit = 31
+        rtdose_dicom.Modality = 'RTDOSE'
+        rtdose_dicom.PhotometricInterpretation = 'MONOCHROME2'
+        rtdose_dicom.PixelRepresentation = 0
+        rtdose_dicom.SamplesPerPixel = 1
+        rtdose_dicom.SOPClassUID = file_meta.MediaStorageSOPClassUID
+        rtdose_dicom.SOPInstanceUID = file_meta.MediaStorageSOPInstanceUID
+
+    # Set custom attributes.
+    rtdose_dicom.DeviceSerialNumber = ''
+    rtdose_dicom.InstitutionAddress = ''
+    rtdose_dicom.InstitutionName = 'PMCC'
+    rtdose_dicom.InstitutionalDepartmentName = 'PMCC-AI'
+    rtdose_dicom.Manufacturer = 'PMCC-AI'
+    rtdose_dicom.ManufacturerModelName = 'PMCC-AI'
+    rtdose_dicom.SoftwareVersions = ''
+    
+    # Copy atributes from reference ct/rtdose dicom.
+    assert rtdose_template is not None or ref_ct is not None
+    ref_dicom = rtdose_template if rtdose_template is not None else ref_ct
+    attrs = [
+        'AccessionNumber',
+        'FrameOfReferenceUID',
+        'PatientBirthDate',
+        'PatientID',
+        'PatientName',
+        'PatientSex',
+        'StudyDate',
+        'StudyDescription',
+        'StudyID',
+        'StudyInstanceUID',
+        'StudyTime'
+    ]
+    for a in attrs:
+        if hasattr(ref_dicom, a):
+            setattr(rtdose_dicom, a, getattr(ref_dicom, a))
+
+    # Add series info.
+    series_description = rtdose_dicom.StudyID if series_description is None else series_description
+    rtdose_dicom.SeriesDescription = f'RTDOSE ({series_description})'
+    rtdose_dicom.SeriesInstanceUID = dcm.uid.generate_uid()
+    rtdose_dicom.SeriesNumber = 1
+
+    # Remove some attributes that might be set from the template.
+    remove_attrs = [
+        'OperatorsName',
+        'StationName',
+    ]
+    if rtdose_template is not None:
+        for a in remove_attrs:
+            if hasattr(rtdose_dicom, a):
+                delattr(rtdose_dicom, a)
+
+    # Set image properties.
+    spacing = affine_spacing(affine)
+    origin = affine_origin(affine)
+    rtdose_dicom.Columns = data.shape[0]
+    rtdose_dicom.FrameIncrementPointer = dcm.datadict.tag_for_keyword('GridFrameOffsetVector')
+    rtdose_dicom.GridFrameOffsetVector = [i * spacing[2] for i in range(data.shape[2])]
+    rtdose_dicom.ImageOrientationPatient = [1, 0, 0, 0, 1, 0]
+    rtdose_dicom.ImagePositionPatient = list(origin)
+    rtdose_dicom.ImageType = ['DERIVED', 'SECONDARY', 'AXIAL']
+    rtdose_dicom.NumberOfFrames = data.shape[2]
+    rtdose_dicom.PixelSpacing = [spacing[0], spacing[1]]    # Uses (x, y) spacing.
+    rtdose_dicom.Rows = data.shape[1]
+    rtdose_dicom.SliceThickness = spacing[2]
+
+    # Get grid scaling and data type.
+    grid_scaling = rtdose_dicom.DoseGridScaling
+    n_bits = rtdose_dicom.BitsAllocated
+    if n_bits == 16:
+        data_type = np.uint16
+    elif n_bits == 32:
+        data_type = np.uint32
+    else:
+        raise ValueError(f'Unsupported BitsAllocated value: {n_bits}. Must be 16 or 32.')
+
+    # Add dose data. 
+    data = (data / grid_scaling).astype(data_type)
+    rtdose_dicom.PixelData = np.transpose(data).tobytes()     # Uses (z, y, x) format.
+
+    # Set timestamps.
+    dt = datetime.now()
+    rtdose_dicom.ContentDate = dt.strftime(DICOM_DATE_FORMAT)
+    rtdose_dicom.ContentTime = dt.strftime(DICOM_TIME_FORMAT)
+    rtdose_dicom.InstanceCreationDate = dt.strftime(DICOM_DATE_FORMAT)
+    rtdose_dicom.InstanceCreationTime = dt.strftime(DICOM_TIME_FORMAT)
+    rtdose_dicom.SeriesDate = dt.strftime(DICOM_DATE_FORMAT)
+    rtdose_dicom.SeriesTime = dt.strftime(DICOM_TIME_FORMAT)
+
+    return rtdose_dicom

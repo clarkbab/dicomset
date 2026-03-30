@@ -8,7 +8,7 @@ def rename_patients(
     rename_fn: Callable,
     dry_run: bool = True,
     dicom_rename_fn: Optional[Callable] = None,
-    pat_ids: PatientIDs = 'all',
+    patient_ids: PatientIDs = 'all',
     rename_evaluations: bool = True,
     rename_folders: bool = True,
     rename_indexes: bool = True,
@@ -36,8 +36,8 @@ def rename_patients(
 
     # Rename folders.
     if rename_folders:
-        pat_ids = set.list_patients(pat_ids=pat_ids)
-        for p in pat_ids:
+        patient_ids = set.list_patients(patient_ids=patient_ids)
+        for p in patient_ids:
             new_pat_id = rename_fn(p)
             srcpath = os.path.join(set.path, 'data', 'patients', p)
             destpath = os.path.join(set.path, 'data', 'patients', new_pat_id)
@@ -74,15 +74,15 @@ def rename_patients(
         # # Rename registration predictions.
         # dirpath = os.path.join(set.path, 'data', 'predictions', 'registration', 'patients')
         # if os.path.exists(dirpath):
-        #     old_pat_ids = os.listdir(dirpath)
-        #     for o in old_pat_ids:
+        #     old_patient_ids = os.listdir(dirpath)
+        #     for o in old_patient_ids:
         #         # Rename moving patients.
         #         pat_dirpath = os.path.join(dirpath, o)
         #         studys = os.listdir(pat_dirpath)
         #         for s in studys:
         #             study_dirpath = os.path.join(pat_dirpath, s)
-        #             old_moving_pat_ids = os.listdir(study_dirpath)
-        #             for oo in old_moving_pat_ids:
+        #             old_moving_patient_ids = os.listdir(study_dirpath)
+        #             for oo in old_moving_patient_ids:
         #                 new_moving_pat_id = rename_fn(oo)
         #                 if dry_run:
         #                     logging.info(f"Rename moving patient ID from {oo} to {new_moving_pat_id} in registration predictions.")

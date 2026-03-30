@@ -1,6 +1,6 @@
 import numpy as np
 import pandas as pd
-from typing import Any, Callable, Dict, List, Literal, Optional
+from typing import Any, Callable, Dict, List, Literal
 
 from ..mixins import IndexWithErrorsMixin
 from ..patient import Patient
@@ -49,7 +49,7 @@ class DicomPatient(IndexWithErrorsMixin, Patient):
         **kwargs,
         ) -> bool:
         real_ids = self.list_studies(study_id=study_id, **kwargs)
-        req_ids = arg_to_list(study_id, StudyID)
+        req_ids = arg_to_list(study_id, str)
         n_overlap = len(np.intersect1d(real_ids, req_ids))
         return n_overlap > 0 if any else n_overlap == len(req_ids)
 
@@ -90,7 +90,7 @@ class DicomPatient(IndexWithErrorsMixin, Patient):
         
         # Filter by study ID.
         if study_id != 'all':
-            study_ids = arg_to_list(study_id, StudyID)
+            study_ids = arg_to_list(study_id, str)
             all_ids = ids.copy()
             ids = []
             for i, id in enumerate(all_ids):
