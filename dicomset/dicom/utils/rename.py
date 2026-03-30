@@ -7,7 +7,7 @@ from tqdm import tqdm
 from ..dataset import DatasetID, DicomDataset, Dict, PatientID, filepath, match, re
 
 def get_new_pat_id(
-    old_pat: PatientID,
+    old_patient_id: PatientID,
     rename_fn: Union[Callable, Dict[str, str]],
     pat_regexp: Optional[str] = None) -> PatientID:
     if pat_regexp is not None:
@@ -44,7 +44,7 @@ def rename_patients(
     dataset: DatasetID,
     rename_fn: Optional[Callable],
     makeitso: bool = False,
-    pat: PatientIDs = 'all',
+    patient_id: PatientIDs = 'all',
     pat_regexp: Optional[str] = None) -> None:
     # Check if indexes are open and therefore can't be overwritten.
     dset = DicomDataset(dataset)

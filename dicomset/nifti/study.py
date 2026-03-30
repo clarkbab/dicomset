@@ -49,7 +49,7 @@ class NiftiStudy(IndexMixin, Study):
     def list_series(
         self,
         modality: NiftiModality,
-        series: SeriesIDs = 'all',
+        series_id: SeriesIDs = 'all',
         ) -> List[NiftiSeriesID]:
         image_extensions = ['.nii', '.nii.gz', '.nrrd']
         if modality == 'ct':

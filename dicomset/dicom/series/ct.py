@@ -1,30 +1,33 @@
-from mymi import config
-from mymi.geometry import Affine, CtDicom, Fov3D, Point3D, SeriesID, Size3D, Spacing3D, affine_origin, affine_spacing, args, ct, dicom, fov, from_ct_dicom, has_private_attr
 import numpy as np
 import os
 import pandas as pd
 import pydicom as dcm
 from typing import Any, Callable, Dict, List
 
+from ... import config
+from ...typing import AffineMatrix, Box3D, Point3D, Size3D, Spacing3D
+from ...utils.dicom import from_ct_dicom
+from ...utils.python import has_private_attr
+from ...utils.geometry import affine_origin, affine_spacing, fov
 from .series import DicomSeries
 
 class DicomCtSeries(DicomSeries):
     def __init__(
         self,
         dataset: 'DicomDataset',
-        pat: 'DicomPatient',
+        patient: 'DicomPatient',
         study: 'DicomStudy',
         id: SeriesID,
         index: pd.DataFrame,
         index_policy: Dict[str, Any]) -> None:
-        super().__init__('ct', dataset, pat, study, id, index=index, index_policy=index_policy)
+        super().__init__('ct', dataset, patient, study, id, index=index, index_policy=index_policy)
         dspath = os.path.join(config.directories.datasets, 'dicom', self._dataset.id, 'data', 'patients')
         relpaths = list(index['filepath'])
         abspaths = [os.path.join(dspath, p) for p in relpaths]
         self.__filepaths = abspaths
 
     @property
-    def affine(self) -> Affine:
+    def affine(self) -> AffineMatrix:
         return self.__affine
 
     @property
@@ -60,7 +63,7 @@ class DicomCtSeries(DicomSeries):
     def fov(
         self,
         **kwargs,
-        ) -> Fov3D:
+        ) -> Box3D:
         return fov(self.__data.shape, affine=self.__affine, **kwargs)
 
     def __load_data(self) -> None:

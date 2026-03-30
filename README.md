@@ -6,7 +6,7 @@
 Don't make people write 'pat_id' etc. in the API, it's kind of redundant.
 
 How do we refer to patients/studies/series/regions/landmarks/etc. in the code? Do we use pat_id or pat, region or region?
-'_id' seems a bit pointless, also why don't we say 'dataset_id'. Maybe just set.list_patients(pat='PMCC_ReIrrad_L01') for example.
+'_id' seems a bit pointless, also why don't we say 'dataset_id'. Maybe just set.list_patients(patient_id='PMCC_ReIrrad_L01') for example.
 Or plot_patient('PMCC-REIRRAD', 'PMCC_ReIrrad_L01', landmark='all').
 
 For instances where a function API takes data as well (e.g. plot_image takes landmarks (IDs), plus landmarks data) the data should be referenced explicitly, (landmarks_data=), whilst the landmark IDs are implicity (landmark=). This is primarily because we don't often pass data around but we always pass around IDs.

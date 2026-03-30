@@ -45,7 +45,7 @@ class DicomDataset(
         patient: PatientID | List[PatientID],
         any: bool = False,
         **kwargs) -> bool:
-        real_ids = self.list_patients(pat=patient, **kwargs)
+        real_ids = self.list_patients(patient_id=patient, **kwargs)
         req_ids = arg_to_list(patient, PatientID)
         n_overlap = len(np.intersect1d(real_ids, req_ids))
         return n_overlap > 0 if any else n_overlap == len(req_ids)
@@ -54,7 +54,7 @@ class DicomDataset(
     def list_patients(
         self,
         group: PatientGroups = 'all',
-        pat: PatientIDs = 'all', 
+        patient_id: PatientIDs = 'all', 
         region: RegionIDs = 'all',
         show_progress: bool = False,
         use_mapping: bool = True,
@@ -128,7 +128,7 @@ class DicomDataset(
     def list_regions(
         self,
         group: PatientGroups = 'all',
-        pat: PatientIDs = 'all',
+        patient_id: PatientIDs = 'all',
         use_mapping: bool = True,
         use_regions_report: bool = True,
         ) -> List[RegionID]:

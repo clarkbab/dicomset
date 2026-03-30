@@ -1,25 +1,27 @@
 from datetime import datetime as dt
 import pandas as pd
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
 
 from ..mixins import IndexWithErrorsMixin
-from ..regions_map import DatasetID, PatientID, RegionsMap, StudyID
+from ..regions_map import RegionsMap, StudyID
 from ..study import Study
-from .series import DICOM_DATE_FORMAT, DICOM_TIME_FORMAT, DicomCtSeries, DicomModality, DicomMrSeries, DicomRtDoseSeries, DicomRtPlanSeries, DicomRtStructSeries, DicomSeries, Series, SeriesID, args, config, ct, date, fov, logging, np, props, regions, time
+from ..utils.args import arg_to_list, resolve_id
+from .series import DICOM_DATE_FORMAT, DICOM_TIME_FORMAT, DicomCtSeries, DicomModality, DicomMrSeries, DicomRtDoseSeries, DicomRtPlanSeries, DicomRtStructSeries, DicomSeries
 
 class DicomStudy(IndexWithErrorsMixin, Study):
     def __init__(
         self,
-        dataset: DatasetID,
-        pat: PatientID,
+        dataset: 'Dataset',
+        patient: 'Patient',
         id: StudyID,
         index: pd.DataFrame,
         index_policy: Dict[str, Any],
         index_errors: pd.DataFrame,
-        config: Optional[Dict[str, Any]] = None,
-        ct_from: Optional['DicomStudy'] = None,
-        regions_map: Optional[RegionsMap] = None):
-        super().__init__(dataset, pat, id, config=config, ct_from=ct_from, regions_map=regions_map)
+        config: Dict[str, Any] | None = None,
+        ct_from: 'DicomStudy' | None = None,
+        regions_map: RegionsMap | None = None,
+        ) -> None:
+        super().__init__(dataset, patient, id, config=config, ct_from=ct_from, regions_map=regions_map)
         self.__ct_from = ct_from
         self._index = index
         self._index_errors = index_errors
@@ -39,7 +41,8 @@ class DicomStudy(IndexWithErrorsMixin, Study):
     def default_series(
         self,
         modality: DicomModality,
-        show_warning: bool = True) -> Optional[DicomSeries]:
+        show_warning: bool = True,
+        ) -> DicomSeries | None:
         serieses = self.list_series(modality)
         if show_warning and len(serieses) > 1:
             logging.warning(f"More than one '{modality}' series found for '{self}', defaulting to latest.")
@@ -47,23 +50,24 @@ class DicomStudy(IndexWithErrorsMixin, Study):
 
     def has_series(
         self,
-        series: SeriesIDs,
+        series_id: SeriesID | List[SeriesID],
         modality: DicomModality,
         any: bool = False,
-        **kwargs) -> bool:
-        real_ids = self.list_series(modality, series=series, **kwargs)
-        req_ids = arg_to_list(series, SeriesID)
+        **kwargs,
+        ) -> bool:
+        real_ids = self.list_series(modality, series_id=series_id, **kwargs)
+        req_ids = arg_to_list(series_id, SeriesID)
         n_overlap = len(np.intersect1d(real_ids, req_ids))
         return n_overlap > 0 if any else n_overlap == len(req_ids)
 
     @alias_kwargs((
         ('sd', 'show_date'),
-        ('sf', 'shof_filepath'),
+        ('sf', 'show_filepath'),
     ))
     def list_series(
         self,
         modality: DicomModality,
-        series: SeriesIDs = 'all',
+        series_id: SeriesID | List[SeriesID] | Literal['all'] = 'all', 
         show_date: bool = False,
         show_filepath: bool = False) -> List[SeriesID]:
         if modality not in DicomModality.__args__:
@@ -73,10 +77,10 @@ class DicomStudy(IndexWithErrorsMixin, Study):
         index = index.sort_values(['series-date', 'series-time'], ascending=[True, True])
         ids = list(index['series-id'].unique())
 
-        # Filter by 'series'.
-        if series != 'all':
-            serieses = arg_to_list(series, SeriesID)
-            ids = [i for i in ids if i in serieses]
+        # Filter by series ID.
+        if series_id != 'all':
+            series_ids = arg_to_list(series_id, str)
+            ids = [i for i in ids if i in series_ids]
 
         # Add extra info if requested.
         def append_info(s: SeriesID) -> str:
@@ -86,6 +90,7 @@ class DicomStudy(IndexWithErrorsMixin, Study):
             if show_filepath:
                 s = f'{s} ({series.filepath})'
             return s
+
         if show_date or show_filepath:
             ids = [append_info(i) for i in ids]
 
@@ -94,14 +99,15 @@ class DicomStudy(IndexWithErrorsMixin, Study):
     def series(
         self,
         id: SeriesID,
-        modality: Optional[DicomModality] = None,
-        **kwargs: Dict) -> DicomSeries:
+        modality: DicomModality | None = None,
+        **kwargs: Dict,
+        ) -> DicomSeries:
         if modality is None:
             modality = self.series_modality(id)
         elif modality not in DicomModality.__args__:
             raise ValueError(f"Unrecognised modality '{modality}'. Should be one of {DicomModality.__args__}.")
         else:
-            id = handle_idx_prefix(id, lambda: self.list_series(modality))
+            id = resolve_id(id, lambda: self.list_series(modality))
 
         if not self.has_series(id, modality):
             raise ValueError(f"{modality.upper()} series '{id}' not found for study '{self}'.")
@@ -140,7 +146,8 @@ class DicomStudy(IndexWithErrorsMixin, Study):
 
     def series_modality(
         self,
-        id: SeriesID) -> DicomModality:
+        id: SeriesID,
+        ) -> DicomModality:
         # Get modality from index.
         index = self._index.copy()
         index = index[index['series-id'] == id]

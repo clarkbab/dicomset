@@ -1,10 +1,9 @@
-from datetime import date, datetime as dt, time
+from datetime import datetime as dt
 from typing import Literal
 
 from ...mixins import IndexMixin
 from ...series import Series
-
-DicomModality = Literal['ct', 'mr', 'rtdose', 'rtplan', 'rtstruct']
+from ...typing import DicomModality
 
 # Abstract class.
 class DicomSeries(IndexMixin, Series):

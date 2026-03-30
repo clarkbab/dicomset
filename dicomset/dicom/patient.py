@@ -1,11 +1,13 @@
+import numpy as np
 import pandas as pd
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any, Callable, Dict, List, Literal, Optional
 
 from ..mixins import IndexWithErrorsMixin
 from ..patient import Patient
 from ..regions_map import PatientID, RegionsMap, StudyID
-from .series import config, fov, np, props
-from .study import DicomStudy, Study, mods
+from ..utils.args import arg_to_list, resolve_id
+from ..utils.pandas import append_row
+from .study import DicomStudy 
 
 class DicomPatient(IndexWithErrorsMixin, Patient):
     def __init__(
@@ -15,9 +17,10 @@ class DicomPatient(IndexWithErrorsMixin, Patient):
         index: pd.DataFrame,
         index_policy: Dict[str, Any],
         index_errors: pd.DataFrame,
-        config: Optional[Dict[str, Any]] = None,
-        ct_from: Optional['DicomPatient'] = None,
-        regions_map: Optional[RegionsMap] = None) -> None:
+        config: Dict[str, Any] | None = None,
+        ct_from: 'DicomPatient' | None = None,
+        regions_map: RegionsMap | None = None,
+        ) -> None:
         super().__init__(dataset, id, config=config, ct_from=ct_from, regions_map=regions_map)
         self._index_errors = index_errors
         self._index = index
@@ -32,20 +35,21 @@ class DicomPatient(IndexWithErrorsMixin, Patient):
         return self.get_cts()[0].PatientBirthDate
     
     @property
-    def default_study(self) -> Optional[DicomStudy]:
-        studys = self.list_studies()
-        if len(studys) > 0:
-            return self.study(studys[-1])
+    def default_study(self) -> DicomStudy | None:
+        study_ids = self.list_studies()
+        if len(study_ids) > 0:
+            return self.study(study_ids[-1])
         else:
             return None
 
     def has_study(
         self,
-        study: StudyIDs,
+        study_id: StudyID | List[StudyID],
         any: bool = False,
-        **kwargs) -> bool:
-        real_ids = self.list_studies(study=study, **kwargs)
-        req_ids = arg_to_list(study, StudyID)
+        **kwargs,
+        ) -> bool:
+        real_ids = self.list_studies(study_id=study_id, **kwargs)
+        req_ids = arg_to_list(study_id, StudyID)
         n_overlap = len(np.intersect1d(real_ids, req_ids))
         return n_overlap > 0 if any else n_overlap == len(req_ids)
 
@@ -78,19 +82,20 @@ class DicomPatient(IndexWithErrorsMixin, Patient):
     def list_studies(
         self,
         show_datetime: bool = False,
-        sort: Optional[Callable[DicomStudy, int]] = None,
-        study: StudyIDs = 'all') -> List[StudyID]:
+        sort: Callable[DicomStudy, int] | None = None,
+        study_id: StudyID | List[StudyID] | Literal['all'] = 'all',
+        ) -> List[StudyID]:
         # Sort studies by date/time - oldest first.
         ids = list(self._index.sort_values(['study-date', 'study-time'])['study-id'].unique())
         
-        # Filter by 'study'.
-        if study != 'all':
-            studys = arg_to_list(study, StudyID)
+        # Filter by study ID.
+        if study_id != 'all':
+            study_ids = arg_to_list(study_id, StudyID)
             all_ids = ids.copy()
             ids = []
             for i, id in enumerate(all_ids):
-                # Check if any of the passed 'studys' references this ID.
-                for j, sid in enumerate(studys):
+                # Check if any of the passed 'study_ids' references this ID.
+                for j, sid in enumerate(study_ids):
                     if sid.startswith('i:'):
                         # Check if idx refer
                         idx = int(sid.split(':')[1])
@@ -129,9 +134,9 @@ class DicomPatient(IndexWithErrorsMixin, Patient):
     def study(
         self,
         id: StudyID,
-        sort: Optional[Callable[DicomStudy, int]] = None,  # For 'i:n' calls.
+        sort: Callable[DicomStudy, int] | None = None,
         ) -> DicomStudy:
-        id = handle_idx_prefix(id, lambda: self.list_studies(sort=sort))
+        id = resolve_id(id, lambda: self.list_studies(sort=sort))
         if not self.has_study(id):
             raise ValueError(f"Study '{id}' not found for patient '{self}'.")
         index = self._index[self._index['study-id'] == str(id)].copy()

@@ -1,23 +1,23 @@
-from mymi import config
-from mymi.geometry import Fov3D, MrImageArray, Point3D, SeriesID, Spacing3D, args, dicom, fov, has_private_attr, round
 import numpy as np
 import os
 import pandas as pd
 import pydicom as dcm
 from typing import Any, Callable, Dict, List
 
+from ... import config
+from ...utils.python import has_private_attr
 from .series import DicomSeries
 
 class DicomMrSeries(DicomSeries):
     def __init__(
         self,
         dataset: 'DicomDataset',
-        pat: 'DicomPatient',
+        patient: 'DicomPatient',
         study: 'DicomStudy',
         id: SeriesID,
         index: pd.DataFrame,
         index_policy: Dict[str, Any]) -> None:
-        super().__init__('mr', dataset, pat, study, id, index=index, index_policy=index_policy)
+        super().__init__('mr', dataset, patient, study, id, index=index, index_policy=index_policy)
         dspath = os.path.join(config.directories.datasets, 'dicom', self._dataset.id, 'data', 'patients')
         relpaths = list(index['filepath'])
         abspaths = [os.path.join(dspath, p) for p in relpaths]
@@ -25,11 +25,11 @@ class DicomMrSeries(DicomSeries):
 
     @property
     @ensure_loaded
-    def data(self) -> MrImageArray:
+    def data(self) -> Image3D:
         return self.__data
     
     @property
-    def dicoms(self) -> List[dcm.FileDataset]:
+    def dicoms(self) -> List[CtDicom]:
         # Sort MRs by z position, smallest first.
         mr_dicoms = [dcm.dcmread(f, force=False) for f in self.__filepaths]
         mr_dicoms = list(sorted(mr_dicoms, key=lambda m: m.ImagePositionPatient[2]))
@@ -94,7 +94,7 @@ class DicomMrSeries(DicomSeries):
 
     @property
     @ensure_loaded
-    def size(self) -> Spacing3D:
+    def size(self) -> Size3D:
         return self.__data.shape
 
     @property

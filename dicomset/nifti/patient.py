@@ -41,17 +41,17 @@ class NiftiPatient(IndexMixin, Patient):
 
     def has_study(
         self,
-        study: StudyIDs,
+        study_id: StudyIDs,
         any: bool = False,
         **kwargs) -> bool:
-        real_ids = self.list_studies(study=study, **kwargs)
+        real_ids = self.list_studies(study_id=study, **kwargs)
         req_ids = arg_to_list(study, StudyID)
         n_overlap = len(np.intersect1d(real_ids, req_ids))
         return n_overlap > 0 if any else n_overlap == len(req_ids)
 
     def list_studies(
         self,
-        study: StudyIDs = 'all',    # Used for filtering.
+        study_id: StudyIDs = 'all',    # Used for filtering.
         ) -> List[StudyID]:
         # Might have to deal with sorting at some point for 'default_study'.
         # Right now sorting is just alphabetical, which is fine if we're using anonymous IDs,

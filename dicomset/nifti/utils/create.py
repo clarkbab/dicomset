@@ -6,8 +6,8 @@ from ..series import Affine, CtImageArray, DoseImageArray, LandmarksFrame, MrIma
 
 def create_ct(
     dataset: DatasetID,
-    pat: PatientID,
-    study: StudyID,
+    patient_id: PatientID,
+    study_id: StudyID,
     series: NiftiSeriesID,
     data: CtImageArray,
     affine: Affine,
@@ -35,8 +35,8 @@ def create_index(
 
 def create_info(
     dataset: DatasetID,
-    pat: PatientID,
-    study: StudyID,
+    patient_id: PatientID,
+    study_id: StudyID,
     data: Any,
     makeitso: bool = False,
     ) -> None:
@@ -50,8 +50,8 @@ def create_info(
 
 def create_region(
     dataset: DatasetID,
-    pat: PatientID,
-    study: StudyID,
+    patient_id: PatientID,
+    study_id: StudyID,
     series: NiftiSeriesID,
     region: RegionID,
     data: LabelArray,
@@ -68,16 +68,16 @@ def create_region(
 
 def create_registration_moved_image(
     dataset: DatasetID,
-    fixed_pat: PatientID,
+    fixed_patient_id: PatientID,
     model: ModelID,
     data: Union[CtImageArray, DoseImageArray, MrImageArray],
     modality: NiftiModality,
     spacing: Spacing3D,
     origin: Point3D,
     dry_run: bool = True,
-    fixed_study: StudyID = 'study_1',
+    fixed_study_id: StudyID = 'study_1',
     moving_pat: Optional[PatientID] = None,
-    moving_study: StudyID = 'study_0') -> None:
+    moving_study_id: StudyID = 'study_0') -> None:
     set = NiftiDataset(dataset)
     moving_pat = fixed_pat if moving_pat is None else moving_pat
     filepath = os.path.join(set.path, 'data', 'predictions', 'registration', 'patients', fixed_pat, fixed_study, moving_pat, moving_study, modality, f'{model}.nii.gz')
@@ -85,13 +85,13 @@ def create_registration_moved_image(
 
 def create_registration_moved_landmarks(
     dataset: DatasetID,
-    fixed_pat: PatientID,
+    fixed_patient_id: PatientID,
     model: ModelID,
     data: LandmarksFrame,
     dry_run: bool = True,
-    fixed_study: StudyID = 'study_1',
+    fixed_study_id: StudyID = 'study_1',
     moving_pat: Optional[PatientID] = None,
-    moving_study: StudyID = 'study_0') -> None:
+    moving_study_id: StudyID = 'study_0') -> None:
     set = NiftiDataset(dataset)
     moving_pat = fixed_pat if moving_pat is None else moving_pat
     filepath = os.path.join(set.path, 'data', 'predictions', 'registration', 'patients', fixed_pat, fixed_study, moving_pat, moving_study, 'landmarks', f'{model}.csv')
@@ -99,16 +99,16 @@ def create_registration_moved_landmarks(
 
 def create_registration_moved_region(
     dataset: DatasetID,
-    fixed_pat: PatientID,
+    fixed_patient_id: PatientID,
     region: RegionID,
     model: ModelID,
     data: LabelArray,
     spacing: Spacing3D,
     origin: Point3D,
     dry_run: bool = True,
-    fixed_study: StudyID = 'study_1',
+    fixed_study_id: StudyID = 'study_1',
     moving_pat: Optional[PatientID] = None,
-    moving_study: StudyID = 'study_0') -> None:
+    moving_study_id: StudyID = 'study_0') -> None:
     set = NiftiDataset(dataset)
     moving_pat = fixed_pat if moving_pat is None else moving_pat
     filepath = os.path.join(set.path, 'data', 'predictions', 'registration', 'patients', fixed_pat, fixed_study, moving_pat, moving_study, 'regions', region, f'{model}.nii.gz')
@@ -116,13 +116,13 @@ def create_registration_moved_region(
 
 def create_registration_transform(
     dataset: DatasetID,
-    fixed_pat: PatientID,
+    fixed_patient_id: PatientID,
     model: ModelID,
     transform: sitk.Transform,
     dry_run: bool = True,
-    fixed_study: StudyID = 'study_1',
+    fixed_study_id: StudyID = 'study_1',
     moving_pat: Optional[PatientID] = None,
-    moving_study: StudyID = 'study_0') -> None:
+    moving_study_id: StudyID = 'study_0') -> None:
     set = NiftiDataset(dataset)
     moving_pat = fixed_pat if moving_pat is None else moving_pat
     filepath = os.path.join(set.path, 'data', 'predictions', 'registration', 'patients', fixed_pat, fixed_study, moving_pat, moving_study, 'transform', f'{model}.hdf5')

@@ -36,10 +36,10 @@ class NiftiDataset(IndexMixin, Dataset):
 
     def has_patient(
         self,
-        pat: PatientID = 'all',
+        patient_id: PatientID = 'all',
         all: bool = False) -> bool:
         all_pats = self.list_patients()
-        subset_pats = self.list_patients(pat=pat)
+        subset_pats = self.list_patients(patient_id=pat)
         n_overlap = len(np.intersect1d(all_pats, subset_pats))
         return n_overlap == len(all_pats) if all else n_overlap > 0
 
@@ -59,7 +59,7 @@ class NiftiDataset(IndexMixin, Dataset):
         self,
         exclude: Optional[PatientIDs] = None,
         group: PatientGroups = 'all',
-        pat: PatientIDs = 'all',    # Saves on filtering code elsewhere.
+        patient_id: PatientIDs = 'all',    # Saves on filtering code elsewhere.
         region: RegionIDs = 'all',
         ) -> List[PatientID]:
         # Load patients from filenames.
@@ -163,11 +163,11 @@ class NiftiDataset(IndexMixin, Dataset):
 
     def list_regions(
         self,
-        pat: PatientIDs = 'all',
+        patient_id: PatientIDs = 'all',
         region: RegionIDs = 'all',  # Used for filtration.
         ) -> List[RegionID]:
         # Load all patients.
-        pat_ids = self.list_patients(pat=pat)
+        pat_ids = self.list_patients(patient_id=pat)
 
         # Trawl the depths for region IDs.
         ids = []

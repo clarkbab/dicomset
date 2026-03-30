@@ -1,0 +1,183 @@
+import numpy as np
+import scipy
+
+from ..typing import AffineMatrix, Box, BoxTensor, Image, LabelImage, Pixel, Point, Size, Voxel
+
+def affine_origin(
+    affine: AffineMatrix,
+    ) -> Point:
+    # Get origin.
+    dim = affine.shape[0] - 1
+    if dim == 2:
+        origin = (affine[0, 2], affine[1, 2])
+    else:
+        origin = (affine[0, 3], affine[1, 3], affine[2, 3])
+
+    return origin
+
+def affine_spacing(
+    affine: AffineMatrix,
+    ) -> Spacing:
+    # Get spacing.
+    dim = affine.shape[0] - 1
+    if dim == 2:
+        spacing = (affine[0, 0], affine[1, 1])
+    else:
+        spacing = (affine[0, 0], affine[1, 1], affine[2, 2])
+
+    return spacing
+
+def create_affine(
+    spacing: Spacing,
+    origin: Point,
+    ) -> AffineMatrix:
+    dim = len(spacing)
+    affine = create_eye(dim)
+    if dim == 2:
+        affine[0, 0] = spacing[0]
+        affine[1, 1] = spacing[1]
+        affine[0, 2] = origin[0]
+        affine[1, 2] = origin[1]
+    else:
+        affine[0, 0] = spacing[0]
+        affine[1, 1] = spacing[1]
+        affine[2, 2] = spacing[2]
+        affine[0, 3] = origin[0]
+        affine[1, 3] = origin[1]
+        affine[2, 3] = origin[2]
+    return affine
+
+def create_eye(
+    dim: SpatialDim,
+    ) -> np.ndarray:
+    return np.eye(dim + 1)
+
+def com(
+    data: Image,
+    affine: AffineMatrix | None = None,
+    ) -> Point | Pixel | Voxel:
+    if data.sum() == 0:
+        return None 
+
+    # Compute the centre of mass.
+    com = scipy.ndimage.center_of_mass(data)
+    if affine is not None:
+        com = to_world_coords(com, affine)
+
+    return com
+
+def foreground_fov(
+    data: LabelImage,
+    affine: AffineMatrix | None = None,
+    ) -> Box | None:
+    if data.sum() == 0:
+        return None
+
+    # Get fov of foreground objects.
+    non_zero = np.argwhere(data != 0)
+    fov_vox = np.stack([
+        non_zero.min(axis=0),
+        non_zero.max(axis=0),
+    ])
+    if affine is None:
+        return fov_vox
+
+    # Get fov in mm.
+    spacing = affine_spacing(affine)
+    origin = affine_origin(affine)
+    fov_mm = fov_vox * spacing + origin
+
+    return fov_mm
+
+def foreground_fov_centre(
+    data: LabelImage,
+    affine: AffineMatrix | None = None,
+    **kwargs,
+    ) -> Point | Pixel | Voxel | None:
+    fov_d = foreground_fov(data, affine=affine, **kwargs)
+    if fov_d is None:
+        return None
+    fov_c = fov_d.sum(axis=0) / 2
+    if affine is None:
+        fov_c = np.round(fov_c).astype(np.int32)
+        
+    return fov_c
+
+def foreground_fov_width(
+    data: LabelImage,
+    **kwargs,
+    ) -> Size | None:
+    # Get foreground fov.
+    fov_fg = foreground_fov(data, **kwargs)
+    if fov_fg is None:
+        return None
+    min, max = fov_fg
+    fov_w = max - min
+
+    return fov_w
+
+def fov(
+    size: Size,
+    affine: AffineMatrix | None = None,
+    ) -> BoxTensor:
+    # Get fov in voxels.
+    n_dims = len(size)
+    fov_vox = np.stack([
+        np.zeros(n_dims, dtype=np.int32),
+        np.array(size, dtype=np.int32),
+    ])
+    if affine is None:
+        return fov_vox
+
+    # Get fov in mm.
+    spacing = affine_spacing(affine)
+    origin = affine_origin(affine)
+    fov_mm = fov_vox * spacing + origin
+
+    return fov_mm
+
+def fov_centre(
+    size: Size,
+    affine: AffineMatrix | None = None,
+    **kwargs,
+    ) -> Point | Pixel | Voxel:
+    # Get FOV.
+    fov_d = fov(size, affine=affine, **kwargs)
+
+    # Get FOV centre.
+    fov_c = fov_d.sum(axis=0) / 2
+    if affine is None:
+        fov_c = np.round(fov_c).astype(np.int32)
+
+    return fov_c
+
+def fov_width(
+    size: Size,
+    affine: AffineMatrix | None = None,
+    **kwargs,
+    ) -> Size:
+    fov_d = fov(size, affine=affine, **kwargs)
+    
+    # Get width.
+    min, max = fov_d
+    fov_w = max - min
+
+    return fov_w
+
+def to_image_coords(
+    point: Point,
+    affine: AffineMatrix,
+    ) -> Pixel | Voxel:
+    spacing = affine_spacing(affine)
+    origin = affine_origin(affine)
+    point_im = np.round((point - origin) / spacing).astype(np.int32)
+    return point_im
+
+def to_world_coords(
+    point: Point,
+    affine: AffineMatrix,
+    ) -> Point:
+    spacing = affine_spacing(affine)
+    origin = affine_origin(affine)
+    point_w = point * spacing + origin
+    return point_w

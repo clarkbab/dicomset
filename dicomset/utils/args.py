@@ -113,3 +113,17 @@ def expand_range_arg(
         elif len(arg) == vals_per_dim:
             arg = arg * dim           
     return arg
+
+def resolve_id(
+    id: str,
+    all_ids: Callable,
+    ) -> id:
+    if id.startswith('i:'):
+        idx = int(id.split(':')[1])
+        ids = all_ids() 
+        if idx > len(ids) - 1:
+            print(ids)
+            raise ValueError(f"Index ({idx}) was larger than list (len={len(ids)}).")
+        id = ids[idx]
+
+    return id

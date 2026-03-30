@@ -11,8 +11,8 @@ class NiftiLandmarksSeries(NiftiSeries):
     def __init__(
         self,
         dataset: DatasetID,
-        pat: PatientID,
-        study: StudyID,
+        patient_id: PatientID,
+        study_id: StudyID,
         id: NiftiSeriesID,
         index: Optional[pd.DataFrame] = None,
         ref_ct: Optional[NiftiCtSeries] = None,

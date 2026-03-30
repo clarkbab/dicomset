@@ -1,0 +1,66 @@
+import numpy as np
+import torch
+from typing import List, Tuple
+
+from ..typing import Number
+from .python import delegates_to
+
+def to_numpy(
+    data: bool | Number | str | List[bool | Number | str] | np.ndarray | torch.Tensor | torch.Size,
+    broadcast: int | None = None,
+    dtype: torch.dtype | None = None,
+    return_type: bool = False,
+    ) -> np.ndarray | Tuple[np.ndarray | type] | None:
+    if data is None:
+        if return_type:
+            return None, None
+        return None
+
+    # Record input type.
+    if return_type:
+        input_type = type(data)
+
+    # Convert data to array.
+    if isinstance(data, (bool, float, int, str)):
+        data = np.array([data])
+    if isinstance(data, (list, tuple)):
+        data = np.array(data)
+
+    # Set data type.
+    if dtype is not None:
+        data = data.astype(dtype)
+
+    # Broadcast if required.
+    if broadcast is not None and len(data) == 1:
+        data = np.repeat(data, broadcast)
+
+    if return_type:
+        return data, input_type
+    else:
+        return data
+
+@delegates_to(to_numpy)
+def to_list(
+    data: bool | Number | str | List[bool | Number | str] | np.ndarray,
+    **kwargs,
+    ) -> List[bool | Number | str] | None:
+    if data is None:
+        return None 
+    return to_numpy(data, **kwargs).tolist()
+
+@delegates_to(to_numpy)
+def to_tuple(
+    data: bool | Number | str | List[bool | Number | str] | np.ndarray,
+    decimals: int | None = None,
+    **kwargs,
+    ) -> Tuple[bool | Number | str, ...] | None:
+    if data is None:
+        return None 
+    # Convert to tuple.
+    data = tuple(to_numpy(data, **kwargs).tolist())
+
+    # Round elements if required.
+    if decimals is not None:
+        data = tuple(round(x, decimals) if isinstance(x, float) else x for x in data)
+
+    return data
