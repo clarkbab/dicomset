@@ -1,0 +1,12 @@
+mymi
+numpy
+opencv-python
+pandas
+pydicom
+pyyaml
+scikit-image
+tqdm
+
+[dev]
+build
+twine

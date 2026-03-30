@@ -1,0 +1,36 @@
+[build-system]
+requires = ["setuptools>=68.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "dicomset"
+version = "0.1.0"
+description = "Python library for DICOM processing, visualisation and analysis."
+readme = "README.md"
+requires-python = ">=3.8"
+dependencies = [
+    "mymi",
+    "numpy",
+    "opencv-python",
+    "pandas",
+    "pydicom",
+    "pyyaml",
+    "scikit-image",
+    "tqdm",
+]
+
+[project.optional-dependencies]
+dev = [
+    "build",
+    "twine",
+]
+
+[tool.setuptools.packages.find]
+include = ["dicomset*"]
+
+[tool.setuptools.package-data]
+dicomset = [
+    "dicom/index/*.yaml",
+    "nifti/files/*.csv",
+    "training/files/*.csv",
+]
