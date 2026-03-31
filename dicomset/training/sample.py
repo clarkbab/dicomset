@@ -1,13 +1,19 @@
-from mymi.regions import regions, regions_is_all, regions_to_list
 import numpy as np
 import os
-from typing import Callable, List, Optional, Sequence, Tuple, Union
+from typing import Callable, List, Literal, Tuple
+
+from ..typing import LabelImage3D, LandmarkID, Point3D, RegionID, SampleID, Size3D, Spacing3D
+from ..utils.args import arg_to_list
+from ..utils.io import load_numpy
+from ..utils.python import has_private_attr
+from ..utils.regions import regions_to_list
 
 class TrainingSample:
     def __init__(
         self,
         split: 'HoldoutSplit',
-        id: SampleID) -> None:
+        id: SampleID,
+        ) -> None:
         self.__split = split
         self._id = int(id)     # Could be passed as a string by mistake.
         self.__index = None
@@ -26,15 +32,16 @@ class TrainingSample:
 
     def has_region(
         self,
-        regions: Regions,
-        all: bool = False) -> bool:
-        if regions_is_all(regions):
+        region_id: RegionID | List[RegionID] | Literal['all'],
+        all: bool = False,
+        ) -> bool:
+        if isinstance(region_id, str) and region_id == 'all':
             return True
 
-        regions = regions_to_list(regions)
-        n_matching = len(np.intersect1d(regions, self.regions()))
+        region_ids = regions_to_list(region_id)
+        n_matching = len(np.intersect1d(region_ids, self.regions()))
 
-        if n_matching == len(regions):
+        if n_matching == len(region_ids):
             return True
         elif not all and n_matching > 0:
             return True
@@ -63,10 +70,11 @@ class TrainingSample:
 
     def label(
         self,
-        landmarks: LandmarkIDs = 'all',
+        landmark_id: LandmarkID | List[LandmarkID] | Literal['all'] = 'all',
         landmark_points_only: bool = True,
-        label_idx: Optional[int] = None,    # Enables multi-label training.
-        regions: Regions = 'all') -> np.ndarray:
+        label_idx: int | None = None,    # Enables multi-label training.
+        region_id: RegionID | List[RegionID] | Literal['all'] = 'all',
+        ) -> LabelImage3D:
         # Get label type.
         label_types = self.split.dataset.label_types
         if len(label_types) == 1:
@@ -86,7 +94,7 @@ class TrainingSample:
             # check requested 'regions', and set channels accordingly.
             filepath = os.path.join(self.split.path, 'labels', f'{label_id}.npz')
             label = np.load(filepath)['data']
-            if regions == 'all':
+            if region_id == 'all':
                 return label
 
             # Filter regions.
@@ -94,25 +102,25 @@ class TrainingSample:
             # present for this sample, as otherwise our label volumes will have different numbers
             # of channels between samples.
             all_regions = self.split.dataset.regions
-            regions = regions_to_list(regions, literals={ 'all': all_regions })
+            region_ids = regions_to_list(region_id, literals={ 'all': all_regions })
             
             # Raise error if sample has no requested regions - the label will be full of zeros.
-            if not self.has_region(regions):
-                raise ValueError(f"Sample {self._id} has no regions {regions}.")
+            if not self.has_region(region_ids):
+                raise ValueError(f"Sample {self._id} has no regions {region_ids}.")
 
             # Extract requested 'regions'.
             channels = [0]
-            channels += [all_regions.index(r) + 1 for r in regions]
+            channels += [all_regions.index(r) + 1 for r in region_ids]
             label = label[channels]
 
         elif label_type == 'landmarks':
             # Load landmarks dataframe.
             filepath = os.path.join(self.split.path, 'labels', f'{label_id}.csv')
             label = load_files_csv(filepath)
-            if landmarks != 'all':
+            if landmark_id != 'all':
                 # Filter on requested landmarks.
-                landmarks = arg_to_list(landmarks, str, literals={ 'all': self.split.dataset.list_landmarks })
-                label = label[label['landmark-id'].isin(landmarks)]
+                landmark_ids = arg_to_list(landmark_id, str, literals={ 'all': self.split.dataset.list_landmarks })
+                label = label[label['landmark-id'].isin(landmark_ids)]
             label = label.rename(columns={ '0': 0, '1': 1, '2': 2 })
 
             if landmark_points_only:
@@ -123,8 +131,9 @@ class TrainingSample:
 
     def mask(
         self,
-        label_idx: Optional[int] = None,    # Enables multi-label training.
-        regions: Regions = 'all') -> np.ndarray:
+        label_idx: int | None = None,    # Enables multi-label training.
+        region_id: RegionID | List[RegionID] | Literal['all'] = 'all',
+        ) -> LabelImage3D:
         label_types = self.split.dataset.label_types
         if len(label_types) == 1:
             label_idx = 0
@@ -137,7 +146,7 @@ class TrainingSample:
         label_id = f'{self._id:03}-{label_idx}' if len(label_types) > 1 else f'{self._id:03}'  # Don't need suffix if single-label.
         filepath = os.path.join(self.split.path, 'masks', f"{label_id}.npz")
         mask = np.load(filepath)['data']
-        if regions == 'all':
+        if region_id == 'all':
             return mask
 
         # Filter regions.
@@ -145,16 +154,16 @@ class TrainingSample:
         # present for this sample, as otherwise our masks will have different numbers
         # of channels between samples.
         all_regions = self.split.dataset.regions
-        regions = regions_to_list(regions, literals={ 'all': all_regions })
+        region_ids = regions_to_list(region_id, literals={ 'all': all_regions })
 
         # Extract requested 'regions'.
         channels = [0]
-        channels += [all_regions.index(r) + 1 for r in regions]
+        channels += [all_regions.index(r) + 1 for r in region_ids]
         mask = mask[channels]
         return mask
 
     @property
-    def origin(self) -> Tuple[str]:
+    def origin(self) -> Point3D:
         origin = [self.index['origin-dataset'], self.index['origin-patient-id']]
         opt_vals = ['origin-study-id', 'origin-fixed-study-id', 'origin-moving-study-id']
         for o in opt_vals:
@@ -172,12 +181,13 @@ class TrainingSample:
 
     def regions(
         self,
-        label_idxs: Optional[Union[int, Sequence[int]]] = 'all') -> List[Region]:
+        label_idxs: int | List[int] | Literal['all'] = 'all',
+        ) -> List[RegionID]:
         label_types = self.split.dataset.label_types
         if len(label_types) == 1:
             label_idxs = [0]
         else:
-            def all_region_label_idxs() -> List[str]:
+            def all_region_label_idxs() -> List[int]:
                 return [i for i, l in enumerate(label_types) if l == 'regions']
             label_idxs = arg_to_list(label_idxs, int, literals={ 'all': all_region_label_idxs })
             if label_idxs is None:

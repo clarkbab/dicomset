@@ -1,12 +1,16 @@
 import os
-from typing import Dict, List
+import pandas as pd
+from typing import Dict, List, Literal
 
 from .. import config
-from ..dicom import DicomDataset, DicomStudy, logging, mods
+from ..dicom import DicomDataset, DicomStudy
 from ..mixins import IndexMixin
 from ..regions_map import RegionsMap
 from ..study import Study
-from .series import Dataset, NiftiCtSeries, NiftiDoseSeries, NiftiImageSeries, NiftiLandmarksSeries, NiftiModality, NiftiMrSeries, NiftiRegionsSeries, NiftiSeries, NiftiSeriesID, SeriesID, StudyID, arg_to_list, args, ct, dicom, filepath, fov, list, nifti, nrrd, pd, property, props, regions
+from ..typing import SeriesID, StudyID
+from ..utils.args import arg_to_list, resolve_id
+from ..utils.logging import logger
+from .series import NiftiCtSeries, NiftiDoseSeries, NiftiImageSeries, NiftiLandmarksSeries, NiftiModality, NiftiMrSeries, NiftiRegionsSeries, NiftiSeries
 
 class NiftiStudy(IndexMixin, Study):
     def __init__(
@@ -14,7 +18,7 @@ class NiftiStudy(IndexMixin, Study):
         dataset: 'NiftiDataset',
         pat: 'NiftiPatient',
         id: StudyID,
-        ct_from: 'NiftiStudy' | None = None,
+        ct_from: Literal['NiftiStudy'] | None = None,
         index: pd.DataFrame | None = None,
         regions_map: RegionsMap | None = None,
         ) -> None:
@@ -29,7 +33,7 @@ class NiftiStudy(IndexMixin, Study):
         ) -> NiftiSeries | None:
         serieses = self.list_series(modality)
         if len(serieses) > 1:
-            logging.warning(f"More than one '{modality}' series found for '{self}', defaulting to latest.")
+            logger.warning(f"More than one '{modality}' series found for '{self}', defaulting to latest.")
         return self.series(serieses[-1], modality) if len(serieses) > 0 else None
 
     @property
@@ -44,15 +48,16 @@ class NiftiStudy(IndexMixin, Study):
 
     def has_series(
         self,
-        id: NiftiSeriesID,
-        modality: NiftiModality) -> bool:
+        id: SeriesID,
+        modality: NiftiModality,
+        ) -> bool:
         return id in self.list_series(modality)
 
     def list_series(
         self,
         modality: NiftiModality,
-        series_id: SeriesIDs = 'all',
-        ) -> List[NiftiSeriesID]:
+        series_id: SeriesID | List[SeriesID] | Literal['all'] = 'all',
+        ) -> List[SeriesID]:
         image_extensions = ['.nii', '.nii.gz', '.nrrd']
         if modality == 'ct':
             if self._ct_from is None:
@@ -78,10 +83,10 @@ class NiftiStudy(IndexMixin, Study):
         else:
             raise ValueError(f"Unknown modality '{modality}'.")
 
-        # Filter by 'series'.
-        if series != 'all':
-            series = arg_to_list(series, (SeriesID))
-            series_ids = [s for s in series_ids if s in series]
+        # Filter by series ID.
+        if series_id != 'all':
+            series_ids = arg_to_list(series_id, str)
+            series_ids = [s for s in series_ids if s in series_ids]
 
         return series_ids
 
@@ -95,33 +100,34 @@ class NiftiStudy(IndexMixin, Study):
 
     def series(
         self,
-        id: NiftiSeriesID,
-        modality: NiftiModality) -> Union[NiftiImageSeries, NiftiLandmarksSeries]:
+        id: SeriesID,
+        modality: NiftiModality,
+        ) -> NiftiImageSeries | NiftiLandmarksSeries | NiftiRegionsSeries:
         image_extensions = ['.nii', '.nii.gz', '.nrrd']
         if modality == 'ct':
-            id = handle_idx_prefix(id, lambda: self.list_series('ct'))
+            id = resolve_id(id, lambda: self.list_series('ct'))
             if self._ct_from is None:
                 index = self._index[(self._index['dataset'] == self._dataset.id) & (self._index['patient-id'] == self._pat.id) & (self._index['study-id'] == self._id) & (self._index['series-id'] == id) & (self._index['modality'] == 'ct')].copy() if self._index is not None else None
                 return NiftiCtSeries(self._dataset, self._pat, self, id, index=index)
             else:
                 return self._ct_from.series(id, modality)
         elif modality == 'dose':
-            id = handle_idx_prefix(id, lambda: self.list_series('dose'))
+            id = resolve_id(id, lambda: self.list_series('dose'))
             # Could multiple series have the same series-id? Yeah definitely.
             index = self._index[(self._index['dataset'] == self._dataset.id) & (self._index['patient-id'] == self._pat.id) & (self._index['study-id'] == self._id) & (self._index['series-id'] == id) & (self._index['modality'] == 'dose')].copy() if self._index is not None else None
             return NiftiDoseSeries(self._dataset, self._pat, self, id, index=index)
         elif modality == 'landmarks':
-            id = handle_idx_prefix(id, lambda: self.list_series('landmarks'))
+            id = resolve_id(id, lambda: self.list_series('landmarks'))
             index = self._index[(self._index['dataset'] == self._dataset.id) & (self._index['patient-id'] == self._pat.id) & (self._index['study-id'] == self._id) & (self._index['series-id'] == id) & (self._index['modality'] == 'landmarks')].copy() if self._index is not None else None
             ref_ct = self.default_series('ct')
             ref_dose = self.default_series('dose')
             return NiftiLandmarksSeries(self._dataset, self._pat, self, id, index=index, ref_ct=ref_ct, ref_dose=ref_dose)
         elif modality == 'mr':
-            id = handle_idx_prefix(id, lambda: self.list_series('mr'))
+            id = resolve_id(id, lambda: self.list_series('mr'))
             index = self._index[(self._index['dataset'] == self._dataset.id) & (self._index['patient-id'] == self._pat.id) & (self._index['study-id'] == self._id) & (self._index['series-id'] == id) & (self._index['modality'] == 'mr')].copy() if self._index is not None else None
             return NiftiMrSeries(self._dataset, self._pat, self, id, index=index)
         elif modality == 'regions':
-            id = handle_idx_prefix(id, lambda: self.list_series('regions'))
+            id = resolve_id(id, lambda: self.list_series('regions'))
             index = self._index[(self._index['dataset'] == self._dataset.id) & (self._index['patient-id'] == self._pat.id) & (self._index['study-id'] == self._id) & (self._index['series-id'] == id) & (self._index['modality'] == 'regions')].copy() if self._index is not None else None
             return NiftiRegionsSeries(self._dataset, self._pat, self, id, index=index, regions_map=self._regions_map)
         else:

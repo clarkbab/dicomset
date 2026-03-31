@@ -1,7 +1,12 @@
-from mymi.geometry import DoseImageArray, fov, load_nifti, load_nrrd, nifti, nrrd
 import os
+import pandas as pd
+from typing import Callable
 
-from ....dicom import Callable, Dataset, DicomDataset, DicomRtDoseSeries, Fov3D, Optional, Point3D, SeriesID, Size3D, Spacing3D, args, config, dicom, filepath, has_private_attr, pd, property, props
+from .... import config
+from ....dicom import DicomDataset, DicomRtDoseSeries
+from ....typing import Box3D, Image3D, Point3D, SeriesID, Size3D, Spacing3D
+from ....utils.io import load_nifti, load_nrrd
+from ....utils.python import has_private_attr
 from .image import NiftiImageSeries
 
 class NiftiDoseSeries(NiftiImageSeries):
@@ -11,7 +16,7 @@ class NiftiDoseSeries(NiftiImageSeries):
         pat: 'NiftiPatient',
         study: 'NiftiStudy',
         id: SeriesID,
-        index: Optional[pd.DataFrame] = None,
+        index: pd.DataFrame | None = None
         ) -> None:
         super().__init__('dose', dataset, pat, study, id, index=index)
         extensions = ['.nii', '.nii.gz', '.nrrd']
@@ -40,7 +45,7 @@ class NiftiDoseSeries(NiftiImageSeries):
 
     @property
     @ensure_loaded
-    def data(self) -> DoseImageArray:
+    def data(self) -> Image3D:
         return self.__data
 
     @property
@@ -56,7 +61,8 @@ class NiftiDoseSeries(NiftiImageSeries):
     @ensure_loaded
     def fov(
         self,
-        **kwargs) -> Fov3D:
+        **kwargs,
+        ) -> Box3D:
         return fov(self.__data, origin=self.__origin, spacing=self.__spacing, **kwargs)
 
     @property

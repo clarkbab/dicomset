@@ -2,13 +2,14 @@ import numpy as np
 import os
 import pandas as pd
 import re
-from typing import List
+from typing import List, Literal
 
 from .. import config
-from ..dataset import CT_FROM_REGEXP, Dataset, DatasetID
-from ..dicom import DicomDataset, PatientID
+from ..dataset import CT_FROM_REGEXP, Dataset
+from ..dicom import DicomDataset
 from ..mixins import IndexMixin
 from ..regions_map import RegionsMap
+from ..typing import DatasetID, GroupID, PatientID, RegionID
 from ..utils.args import arg_to_list, resolve_id
 from ..utils.io import load_csv, load_yaml
 from ..typing import DatasetID, GroupID, PatientID, RegionID

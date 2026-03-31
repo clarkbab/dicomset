@@ -6,6 +6,9 @@ from .. import config
 from ..typing import DatasetID
 from ..utils.misc import with_makeitso
 from .dataset import DicomDataset
+from .patient import DicomPatient
+from .series import DicomCtSeries, DicomMrSeries, DicomRtDoseSeries, DicomRtStructSeries, DicomSeries
+from .study import DicomStudy
 
 def create(id: DatasetID) -> DicomDataset:
     ds_path = os.path.join(config.directories.datasets, 'dicom', id)

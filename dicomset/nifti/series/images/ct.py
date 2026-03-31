@@ -1,13 +1,14 @@
 import numpy as np
 import os
 import pandas as pd
+from typing import Callable
 
-from ... import config
-from ...dicom import DicomCtSeries, DicomDataset
-from ...typing import AffineMatrix3D, Point3D, SeriesID, Size3D, Spacing3D
-from ...utils.io import load_nifti, load_nrrd
-from ...utils.python import has_private_attr
-from ...utils.geometry import fov, affine_origin, affine_spacing
+from .... import config
+from ....dicom import DicomCtSeries, DicomDataset
+from ....typing import AffineMatrix3D, Box3D, Image3D, Point3D, SeriesID, Size3D, Spacing3D
+from ....utils.io import load_nifti, load_nrrd
+from ....utils.python import has_private_attr
+from ....utils.geometry import fov, affine_origin, affine_spacing
 from .image import NiftiImageSeries
 
 class NiftiCtSeries(NiftiImageSeries):

@@ -1,12 +1,12 @@
 import numpy as np
 import os
 import pandas as pd
-from typing import List, Literal
+from typing import List, Literal, Tuple
 
 from .... import config
-from ....dicom import DicomDataset, DicomRtStructSeries, SeriesID
+from ....dicom import DicomDataset, DicomRtStructSeries
 from ....regions_map import RegionsMap
-from ....typing import RegionID, SeriesID
+from ....typing import BatchLabelImage3D, FilePath, RegionID, SeriesID
 from ....utils.args import alias_kwargs, arg_to_list
 from ....utils.io import load_nifti, load_nrrd
 from ....utils.regions import regions_to_list
@@ -39,7 +39,7 @@ class NiftiRegionsSeries(NiftiImageSeries):
         regions_ignore_missing: bool = True,
         return_regions: bool = False,
         **kwargs,
-        ) -> LabelVolumeBatch | Tuple[LabelVolumeBatch, List[RegionID]]:
+        ) -> BatchLabelImage3D | Tuple[BatchLabelImage3D, List[RegionID]]:
         regions = regions_to_list(regions, literals={ 'all': self.list_regions })
 
         # Get region names.
@@ -105,13 +105,14 @@ class NiftiRegionsSeries(NiftiImageSeries):
 
     def has_region(
         self,
-        regions: RegionIDs,
+        region_id: RegionID | List[RegionID] | Literal['all'] = 'all',
         any: bool = False,
-        **kwargs) -> bool:
+        **kwargs,
+        ) -> bool:
         all_ids = self.list_regions(**kwargs)
-        regions = arg_to_list(regions, RegionID)
-        n_overlap = len(np.intersect1d(regions, all_ids))
-        return n_overlap > 0 if any else n_overlap == len(regions)
+        region_ids = arg_to_list(region_id, str)
+        n_overlap = len(np.intersect1d(region_ids, all_ids))
+        return n_overlap > 0 if any else n_overlap == len(region_ids)
 
     @alias_kwargs(('um', 'use_mapping'))
     def list_regions(

@@ -1,12 +1,14 @@
 import numpy as np
 import os
 import pandas as pd
-from typing import List
+from typing import List, Literal
 
 from ... import config
 from ...dicom import DicomDataset, DicomRtStructSeries
-from ...utils import load_csv
-from .images import NiftiCtSeries, NiftiDoseSeries, NiftiSeriesID
+from ...typing import LandmarkID, Landmarks3D, SeriesID
+from ...utils.args import arg_to_list
+from ...utils.io import load_csv
+from .images import NiftiCtSeries, NiftiDoseSeries
 from .series import NiftiSeries
 
 class NiftiLandmarksSeries(NiftiSeries):
@@ -15,7 +17,7 @@ class NiftiLandmarksSeries(NiftiSeries):
         dataset: 'Dataset',
         patient: 'Patient',
         study: 'Study',
-        id: NiftiSeriesID,
+        id: SeriesID,
         index: pd.DataFrame | None = None,
         ref_ct: NiftiCtSeries | None = None,
         ref_dose: NiftiDoseSeries | None = None,
@@ -31,12 +33,12 @@ class NiftiLandmarksSeries(NiftiSeries):
         self,
         points_only: bool = False,
         landmark_id: LandmarkID | List[LandmarkID] | Literal['all'] = 'all',
-        n: Optional[int] = None,
+        n: int | None = None,
         sample_ct: bool = False,
         sample_dose: bool = False,
         use_world_coords: bool = True,
         **kwargs,
-        ) -> Union[LandmarksFrame, LandmarksFrameVox, Points3D, Voxels]:
+        ) -> Landmarks3D:
 
         # Load landmarks.
         landmarks_data = load_csv(self.__filepath)
@@ -51,9 +53,9 @@ class NiftiLandmarksSeries(NiftiSeries):
         landmarks_data = landmarks_data.sort_values('landmark-id')
 
         # Filter by landmark ID.
-        if landmark != 'all':
-            landmarks = self.list_landmarks(landmark=landmark)
-            landmarks_data = landmarks_data[landmarks_data['landmark-id'].isin(landmarks)]
+        if landmark_id != 'all':
+            landmark_ids = self.list_landmarks(landmark_id=landmark_id)
+            landmarks_data = landmarks_data[landmarks_data['landmark-id'].isin(landmark_ids)]
 
         # Filter by number of rows.
         if n is not None:
@@ -100,31 +102,33 @@ class NiftiLandmarksSeries(NiftiSeries):
 
     def has_landmark(
         self,
-        landmarks: LandmarkIDs,
+        landmark_id: LandmarkID | List[LandmarkID] | Literal['all'] = 'all',
         any: bool = False,
-        **kwargs) -> bool:
+        **kwargs,
+        ) -> bool:
         all_ids = self.list_landmarks(**kwargs)
-        landmarks = arg_to_list(landmarks, LandmarkID, literals={ 'all': all_ids })
-        n_overlap = len(np.intersect1d(landmarks, all_ids))
-        return n_overlap > 0 if any else n_overlap == len(landmarks)
+        landmark_ids = arg_to_list(landmark_id, LandmarkID, literals={ 'all': all_ids })
+        n_overlap = len(np.intersect1d(landmark_ids, all_ids))
+        return n_overlap > 0 if any else n_overlap == len(landmark_ids)
 
     def list_landmarks(
         self,
-        landmark: LandmarkIDs = 'all') -> List[LandmarkID]:
+        landmark_id: LandmarkID | List[LandmarkID] | Literal['all'] = 'all',
+        ) -> List[LandmarkID]:
         # Load landmark IDs.
         landmarks_data = load_csv(self.__filepath)
         ids = list(sorted(landmarks_data['landmark-id']))
 
-        if landmark == 'all':
+        if landmark_id == 'all':
             return ids
 
-        if isinstance(landmark, float) and landmark > 0 and landmark < 1:
+        if isinstance(landmark_id, float) and landmark_id > 0 and landmark_id < 1:
             # Take non-random subset of landmarks.
-            ids = p_landmarks(ids, landmark)
+            ids = p_landmarks(ids, landmark_id)
         else:
             # Filter based on passed landmarks.
-            landmarks = arg_to_list(landmark, LandmarkID)
-            ids = [i for i in ids if i in landmarks]
+            landmark_ids = arg_to_list(landmark_id, LandmarkID)
+            ids = [i for i in ids if i in landmark_ids]
 
         return ids
 

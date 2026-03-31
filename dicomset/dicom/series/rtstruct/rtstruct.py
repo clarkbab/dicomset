@@ -4,13 +4,15 @@ import os
 import pydicom as dcm
 import pandas as pd
 import re
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, List, Literal, Tuple
 
-from .... import config
+from .... import config as ds_config
 from ....regions_map import RegionsMap
-from ....typing import DicomCtSeries, LandmarksData, SeriesID
+from ....typing import BatchLabelImage3D, FilePath, LandmarkID, Landmarks3D, Points3D, RegionID, SeriesID, Voxels
 from ....utils.args import arg_to_list
-from ....utils.conversion import to_image_coords, to_numpy
+from ....utils.conversion import to_numpy
+from ....utils.geometry import to_image_coords
+from ....utils.python import filter_lists
 from ....utils.regions import regions_to_list
 from ..ct import DicomCtSeries
 from ..series import DicomSeries
@@ -32,7 +34,7 @@ class DicomRtStructSeries(DicomSeries):
         regions_map: RegionsMap | None = None,
         ) -> None:
         super().__init__('rtstruct', dataset, patient, study, id, config=config)
-        self.__filepath = os.path.join(config.directories.datasets, 'dicom', dataset.id, 'data', 'patients', index['filepath'])
+        self.__filepath = os.path.join(ds_config.directories.datasets, 'dicom', dataset.id, 'data', 'patients', index['filepath'])
         self.__modality = 'rtstruct'
         self.__ref_ct = ref_ct
         self.__regions_map = regions_map
@@ -60,7 +62,8 @@ class DicomRtStructSeries(DicomSeries):
         self,
         region_id: RegionID | List[RegionID],
         any: bool = False,
-        **kwargs) -> bool:
+        **kwargs,
+        ) -> bool:
         all_ids = self.list_regions(**kwargs)
         region_ids = arg_to_list(region_id, str)
         n_overlap = len(np.intersect1d(region_ids, all_ids))
@@ -77,12 +80,12 @@ class DicomRtStructSeries(DicomSeries):
         self,
         points_only: bool = False,
         landmark_id: LandmarkID | List[LandmarkID] = 'all',
-        landmark_regexp: Optional[str] = None,
-        n: Optional[int] = None,
+        landmark_regexp: str | None = None,
+        n: int | None = None,
         show_ids: bool = True,
         use_world_coords: bool = True,
         **kwargs,
-        ) -> LandmarksData | Points3D | Voxels:
+        ) -> Landmarks3D | Points3D | Voxels:
         # Load landmarks.
         landmark_ids = self.list_landmarks(landmark_id=landmark_id, landmark_regexp=landmark_regexp, **kwargs)
         rtstruct_dicom = self.dicom
@@ -270,7 +273,8 @@ class DicomRtStructSeries(DicomSeries):
         region: RegionID = 'all',
         regions_ignore_missing: bool = False,
         use_mapping: bool = True,
-        **kwargs) -> RegionArrays:
+        **kwargs,
+        ) -> BatchLabelImage3D:
 
         # If not 'region-map.csv' exists, set 'use_mapping=False'.
         if self.__regions_map is None:

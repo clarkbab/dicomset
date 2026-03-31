@@ -1,3 +1,5 @@
+from typing import Any, Dict, Literal
+
 from .regions_map import RegionsMap
 from .typing import PatientID
 
@@ -7,17 +9,17 @@ class Patient:
         dataset: 'Dataset',
         id: PatientID,
         config: Dict[str, Any] | None = None,
-        ct_from: 'Patient' | None = None,
+        ct_from: Literal['Patient'] | None = None,
         regions_map: RegionsMap | None = None,
         ) -> None:
-        self._dataset = str(dataset)
+        self._dataset = dataset
         self._config = config
         self._id = str(id)
         self._ct_from = ct_from
         self._regions_map = regions_map
 
     @property
-    def ct_from(self) -> 'Patient' | None:
+    def ct_from(self) -> Literal['Patient'] | None:
         return self._ct_from
 
     @property

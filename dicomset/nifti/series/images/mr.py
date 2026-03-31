@@ -1,7 +1,13 @@
 import numpy as np
 import os
+import pandas as pd
+from typing import Callable
 
-from ....dicom import Callable, Dataset, DicomDataset, DicomMrSeries, MrImageArray, Optional, Point3D, SeriesID, Size3D, args, config, dicom, filepath, has_private_attr, pd, property, props
+from .... import config
+from ....dicom import DicomDataset, DicomMrSeries
+from ....typing import Box3D, Image3D, Point3D, SeriesID, Size3D, Spacing3D
+from ....utils.io import load_nifti, load_nrrd
+from ....utils.python import has_private_attr
 from .image import NiftiImageSeries
 
 class NiftiMrSeries(NiftiImageSeries):
@@ -11,7 +17,7 @@ class NiftiMrSeries(NiftiImageSeries):
         pat: 'NiftiPatient',
         study: 'NiftiStudy',
         id: SeriesID,
-        index: Optional[pd.DataFrame] = None,
+        index: pd.DataFrame | None = None
         ) -> None:
         super().__init__('mr', dataset, pat, study, id, index=index)
         extensions = ['.nii', '.nii.gz', '.nrrd']
@@ -40,7 +46,7 @@ class NiftiMrSeries(NiftiImageSeries):
 
     @property
     @ensure_loaded
-    def data(self) -> MrImageArray:
+    def data(self) -> Image3D:
         return self.__data
 
     @property
@@ -65,7 +71,7 @@ class NiftiMrSeries(NiftiImageSeries):
 
     @property
     @ensure_loaded
-    def spacing(self) -> np.ndarray:
+    def spacing(self) -> Spacing3D:
         return self.__spacing
 
     def __str__(self) -> str:

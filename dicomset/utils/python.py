@@ -1,6 +1,6 @@
 import inspect
 import sys
-from typing import Any, Callable, Dict, Literal, Tuple, get_args, get_origin
+from typing import Any, Callable, Dict, List, Literal, Tuple, get_args, get_origin
 
 from .misc import is_windows
 
@@ -73,6 +73,19 @@ def delegates_to(*inner_fns: Callable) -> Callable:
         return outer_fn
 
     return change_outer_fn_sig
+
+def filter_lists(
+    lists: List[List[Any]],
+    filt_fn: Callable,
+    ) -> List[List[Any]]:
+    n_elements = len(lists[0])
+    for l in lists:
+        if len(l) != n_elements:
+            raise ValueError('All lists must have the same length.')
+    lists = list(map(list, zip(*[i for i in list(zip(*lists)) if filt_fn(i)])))
+    if len(lists) == 0:
+        return [[],] * n_elements
+    return lists
 
 def has_private_attr(obj, attr_name):
     attr_name = f"_{obj.__class__.__name__}{attr_name}"

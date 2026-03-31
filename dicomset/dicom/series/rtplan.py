@@ -1,8 +1,10 @@
-from mymi import config
 import os
 import pandas as pd
+import pydicom as dcm
 from typing import Any, Dict
 
+from ... import config
+from ...typing import SeriesID
 from .series import DicomSeries
 
 class DicomRtPlanSeries(DicomSeries):
@@ -13,13 +15,14 @@ class DicomRtPlanSeries(DicomSeries):
         study: 'DicomStudy',
         id: SeriesID,
         index: pd.Series,
-        index_policy: Dict[str, Any]) -> None:
+        index_policy: Dict[str, Any],
+        ) -> None:
         super().__init__('rtplan', dataset, pat, study, id, index=index, index_policy=index_policy)
         dspath = os.path.join(config.directories.datasets, 'dicom', self._dataset.id, 'data', 'patients')
         self.__filepath = os.path.join(dspath, index['filepath'])
 
     @property
-    def dicom(self) -> RtPlanDicom:
+    def dicom(self) -> dcm.dataset.FileDataset:
         return dcm.dcmread(self.__filepath)
 
     def __str__(self) -> str:

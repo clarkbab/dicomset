@@ -3,15 +3,15 @@ import os
 import pandas as pd
 import re
 from tqdm import tqdm
-from typing import Dict, List
+from typing import List, Literal
 
 from .. import config
-from ..dataset import CT_FROM_REGEXP, Dataset, DatasetID, load_yaml, property
+from ..dataset import CT_FROM_REGEXP, Dataset, DatasetID
 from ..mixins import IndexWithErrorsMixin
 from ..regions_map import RegionsMap
-from ..typing import DatasetID
+from ..typing import DatasetID, GroupID, PatientID, RegionID
 from ..utils.args import arg_to_list, resolve_id
-from ..utils.io import load_csv
+from ..utils.io import load_csv, load_yaml
 from ..utils.logging import logger
 from ..utils.regions import regions_to_list
 from .index import ERROR_INDEX_COLS, INDEX_COLS, build_index as build_index_base, exists as index_exists
@@ -101,13 +101,13 @@ class DicomDataset(Dataset, IndexWithErrorsMixin):
                         ids.append(id)
                         break
 
-        # Filter by 'group'.
-        if group != 'all':
+        # Filter by group ID.
+        if group_id != 'all':
             if self._groups is None:
                 raise ValueError(f"File 'groups.csv' not found for dicom dataset '{self._id}'.")
             all_groups = self.list_groups()
-            groups = arg_to_list(group, PatientGroup, literals={ 'all': all_groups })
-            for g in groups:
+            group_ids = arg_to_list(group_id, str, literals={ 'all': all_groups })
+            for g in group_ids:
                 if g not in all_groups:
                     raise ValueError(f"Group '{g}' not found.")
 
@@ -118,7 +118,7 @@ class DicomDataset(Dataset, IndexWithErrorsMixin):
                 elif len(pat_groups) > 1:
                     raise ValueError(f"Patient '{p}' is a member of more than one group.")
                 pat_group = pat_groups.iloc[0]['group-id']
-                if pat_group in groups:
+                if pat_group in group_ids:
                     return True
                 else:
                     return False

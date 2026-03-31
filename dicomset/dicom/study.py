@@ -1,11 +1,14 @@
 from datetime import datetime as dt
+import numpy as np
 import pandas as pd
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Literal
 
 from ..mixins import IndexWithErrorsMixin
-from ..regions_map import RegionsMap, StudyID
+from ..regions_map import RegionsMap
 from ..study import Study
-from ..utils.args import arg_to_list, resolve_id
+from ..typing import SeriesID, StudyID
+from ..utils.args import alias_kwargs, arg_to_list, resolve_id
+from ..utils.logging import logger
 from .series import DICOM_DATE_FORMAT, DICOM_TIME_FORMAT, DicomCtSeries, DicomModality, DicomMrSeries, DicomRtDoseSeries, DicomRtPlanSeries, DicomRtStructSeries, DicomSeries
 
 class DicomStudy(IndexWithErrorsMixin, Study):
@@ -18,7 +21,7 @@ class DicomStudy(IndexWithErrorsMixin, Study):
         index_policy: Dict[str, Any],
         index_errors: pd.DataFrame,
         config: Dict[str, Any] | None = None,
-        ct_from: 'DicomStudy' | None = None,
+        ct_from: Literal['DicomStudy'] | None = None,
         regions_map: RegionsMap | None = None,
         ) -> None:
         super().__init__(dataset, patient, id, config=config, ct_from=ct_from, regions_map=regions_map)
@@ -45,7 +48,7 @@ class DicomStudy(IndexWithErrorsMixin, Study):
         ) -> DicomSeries | None:
         serieses = self.list_series(modality)
         if show_warning and len(serieses) > 1:
-            logging.warning(f"More than one '{modality}' series found for '{self}', defaulting to latest.")
+            logger.warning(f"More than one '{modality}' series found for '{self}', defaulting to latest.")
         return self.series(serieses[-1], modality) if len(serieses) > 0 else None
 
     def has_series(
@@ -69,7 +72,8 @@ class DicomStudy(IndexWithErrorsMixin, Study):
         modality: DicomModality,
         series_id: SeriesID | List[SeriesID] | Literal['all'] = 'all', 
         show_date: bool = False,
-        show_filepath: bool = False) -> List[SeriesID]:
+        show_filepath: bool = False,
+        ) -> List[SeriesID]:
         if modality not in DicomModality.__args__:
             raise ValueError(f"Unrecognised modality '{modality}'. Should be one of {DicomModality.__args__}.")
         index = self.__ct_from.index().copy() if modality == 'ct' and self.__ct_from is not None else self._index.copy()

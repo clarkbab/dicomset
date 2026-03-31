@@ -1,13 +1,14 @@
 import numpy as np
 import os
 import pandas as pd
-from typing import List
+from typing import List, Literal
 
 from .. import config
-from ..dicom import DicomDataset, DicomPatient, PatientID, StudyID
+from ..dicom import DicomDataset, DicomPatient
 from ..mixins import IndexMixin
 from ..patient import Patient
 from ..regions_map import RegionsMap
+from ..typing import PatientID, StudyID
 from ..utils.args import arg_to_list, resolve_id
 from .study import NiftiStudy
 
@@ -16,9 +17,8 @@ class NiftiPatient(IndexMixin, Patient):
         self,
         dataset: 'NiftiDataset',
         id: PatientID,
-        ct_from: 'NiftiPatient' | None = None,
+        ct_from: Literal['NiftiPatient'] | None = None,
         index: pd.DataFrame | None = None,
-        index: Optional[pd.DataFrame] = None,
         excluded_labels: List[str] | None = None,
         regions_map: RegionsMap | None = None,
         ) -> None:
@@ -46,7 +46,8 @@ class NiftiPatient(IndexMixin, Patient):
         self,
         study_id: StudyID | List[StudyID],
         any: bool = False,
-        **kwargs) -> bool:
+        **kwargs,
+        ) -> bool:
         real_ids = self.list_studies(study_id=study_id, **kwargs)
         req_ids = arg_to_list(study_id, StudyID)
         n_overlap = len(np.intersect1d(real_ids, req_ids))
@@ -54,14 +55,14 @@ class NiftiPatient(IndexMixin, Patient):
 
     def list_studies(
         self,
-        study_id: StudyIDs = 'all',    # Used for filtering.
+        study_id: StudyID | List[StudyID] | Literal['all'] = 'all',
         ) -> List[StudyID]:
         # Might have to deal with sorting at some point for 'default_study'.
         # Right now sorting is just alphabetical, which is fine if we're using anonymous IDs,
         # as they're sorted during DICOM -> NIFTI conversion.
         ids = list(sorted(os.listdir(self.__path)))
         if study_id != 'all':
-            study_ids = arg_to_list(study_id, StudyID)
+            study_ids = arg_to_list(study_id, str)
             all_ids = ids.copy()
             ids = []
             for i, id in enumerate(all_ids):

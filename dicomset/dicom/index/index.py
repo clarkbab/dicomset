@@ -11,6 +11,7 @@ from typing import Any, Dict, get_args
 
 from ... import config
 from ...dataset import CT_FROM_REGEXP, load_yaml
+from ...typing import DatasetID
 from ...utils.io import assert_writeable, load_csv, load_yaml, save_csv, save_yaml
 from ...utils.logging import logger
 from ...utils.pandas import append_row, concat_dataframes
@@ -38,7 +39,7 @@ ERROR_INDEX_COLS = INDEX_COLS.copy()
 ERROR_INDEX_COLS['error'] = str
  
 def build_index(
-    dataset: str,
+    dataset: DatasetID,
     force_dicom_read: bool = False,
     n_crawl: int | None = None,  # For testing purposes.
     rebuild: bool = False,     # Just in case the index reaches a bad state.
@@ -240,7 +241,7 @@ def build_index(
         save_csv(index, temp_filepath)
 
         # Map 'mod-spec' column to literal.
-        def map_mod_spec(m: Union[str, Dict[str, Any]]) -> Dict[str, Any]:
+        def map_mod_spec(m: str | Dict[str, Any]) -> Dict[str, Any]:
             # Index could have both dict (from loaded existing index, rebuild=False)
             # and string (from newly crawled files) mod-spec values.
             return ast.literal_eval(m) if isinstance(m, str) else m

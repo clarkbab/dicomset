@@ -1,17 +1,20 @@
-from mymi import config, regions
 import os
 import pandas as pd
-from typing import List, Optional
+from typing import List, Literal
 
-from ..dataset import Dataset, DatasetID, property
-from .split import TrainingSample
+from .. import config
+from ..dataset import Dataset
+from ..typing import DatasetID, GroupID, LandmarkID, RegionID, SampleID, Spacing3D
+from ..utils.args import arg_to_list
+from .sample import TrainingSample
 from .split import HoldoutSplit
 
 class TrainingDataset(Dataset):
     def __init__(
         self,
         id: DatasetID,
-        **kwargs):
+        **kwargs,
+        ) -> None:
         self._path = os.path.join(config.directories.datasets, 'training', id)
         if not os.path.exists(self._path):
             raise ValueError(f"No training dataset '{id}' found at path: {self._path}")
@@ -45,10 +48,11 @@ class TrainingDataset(Dataset):
     
     def list_samples(
         self,
-        groups: Optional[PatientGroups] = 'all') -> List[SampleID]:
-        groups = arg_to_list(groups, PatientGroup, literals={ 'all': self.list_groups })
+        group_id: GroupID | List[GroupID] | Literal['all'] = 'all',
+        ) -> List[SampleID]:
+        group_ids = arg_to_list(group_id, str, literals={ 'all': self.list_groups })
         samples = []
-        for s in groups:
+        for s in group_ids:
             group = self.group(s)
             samples += group.list_samples()
         samples = list(sorted(samples))
@@ -75,13 +79,15 @@ class TrainingDataset(Dataset):
         return self.__params
     
     @property
-    def regions(self) -> List[Region]:
+    def regions(self) -> List[RegionID]:
         return self.params['regions'] if 'regions' in self.params else []
 
-    def sample(self,
-        id: SampleID) -> TrainingSample:
-        groups = self.list_groups()
-        for s in splits:
+    def sample(
+        self,
+        id: SampleID,
+        ) -> TrainingSample:
+        group_ids = self.list_groups()
+        for s in group_ids:
             split = self.split(s)
             samples = split.list_samples()
             if id in samples:
@@ -94,5 +100,6 @@ class TrainingDataset(Dataset):
 
     def split(
         self,
-        name: str) -> HoldoutSplit:
+        name: str,
+        ) -> HoldoutSplit:
         return HoldoutSplit(self, name)

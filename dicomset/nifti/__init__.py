@@ -1,56 +1,45 @@
-from mymi import config
 import os
 import shutil
 from typing import List
 
-from .dataset import *
-from .series import *
-from .study import *
-from .utils import *
+from .. import config
+from ..typing import DatasetID
+from ..utils.misc import with_makeitso
+from .dataset import NiftiDataset
 
-def create(name: str) -> NiftiDataset:
-    ds_path = os.path.join(config.directories.datasets, 'nifti', name)
-    os.makedirs(ds_path, exist_ok=True)
-    return NiftiDataset(name)
+def create(id: DatasetID) -> NiftiDataset:
+    ds_path = os.path.join(config.directories.datasets, 'nifti', id)
+    if os.path.exists(ds_path):
+        raise FileExistsError(f"Dataset '{id}' already exists at {ds_path}.")
+    os.makedirs(ds_path)
+    return NiftiDataset(id)
 
 def destroy(
-    name: str,
-    makeitso: bool = False) -> None:
-    ds_path = os.path.join(config.directories.datasets, 'nifti', name)
+    id: DatasetID,
+    makeitso: bool = True,
+    ) -> None:
+    ds_path = os.path.join(config.directories.datasets, 'nifti', id)
     if os.path.exists(ds_path):
-        with_makeitso(
-            makeitso,
-            lambda: shutil.rmtree(ds_path),
-            f"Destroying nifti dataset '{name}' at {ds_path}."
-        )
+        with_makeitso(makeitso, lambda: shutil.rmtree(ds_path), f"Destroying nifti dataset '{id}' at {ds_path}.")
 
-def exists(name: str) -> bool:
-    ds_path = os.path.join(config.directories.datasets, 'nifti', name)
+def exists(id: DatasetID) -> bool:
+    ds_path = os.path.join(config.directories.datasets, 'nifti', id)
     return os.path.exists(ds_path)
     
 def list() -> List[str]:
     path = os.path.join(config.directories.datasets, 'nifti')
-    if os.path.exists(path):
-        return sorted(os.listdir(path))
-    else:
-        return []
-
-def load(name: str) -> NiftiDataset:
-    if exists(name):
-        return NiftiDataset(name)
-    else:
-        raise FileNotFoundError(f"Nifti dataset '{name}' does not exist.")
+    return list(sorted(os.listdir(path))) if os.path.exists(path) else []
 
 def recreate(
-    name: str,
-    makeitso: bool = False,
+    id: DatasetID,
+    makeitso: bool = True,
     ) -> NiftiDataset:
-    destroy(name, makeitso=makeitso)
-    if not makeitso:
-        if exists(name):
-            return NiftiDataset(name)
+    destroy(id, makeitso=makeitso)
+    if makeitso:
+        return create(id)
+    else:
+        if exists(id):
+            return NiftiDataset(id)
         else:
             # Creating is fine with makeitso=False.
-            return create(name)
-    else:
-        return create(name)
+            return create(id)

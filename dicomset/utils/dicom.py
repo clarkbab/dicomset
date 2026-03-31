@@ -10,6 +10,12 @@ from ..typing import AffineMatrix3D, DirPath, FilePath, Image2D, Image3D, Patien
 from ..utils.geometry import affine_origin, affine_spacing
 from ..utils.maths import round
 
+DICOM_DATE_FORMAT = '%Y%m%d'
+DICOM_RTDOSE_REF_RTPLAN_KEY = 'RefRTPLANSOPInstanceUID'
+DICOM_RTPLAN_REF_RTSTRUCT_KEY = 'RefRTSTRUCTSOPInstanceUID'
+DICOM_RTSTRUCT_REF_CT_KEY = 'RefCTSeriesInstanceUID'
+DICOM_TIME_FORMAT = '%H%M%S'
+
 def from_ct_dicom(
     # DirPath | List[CtDicom] -> (CtVolume, Affine), FilePath -> CtSlice.
     cts: FilePath | DirPath | List[dcm.dataset.FileDataset],

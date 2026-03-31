@@ -1,14 +1,16 @@
 import cv2 as cv
 from dataclasses import dataclass, field
-from datetime import date, datetime, time
-from mymi import logging
-from mymi.constants import DICOM_DATE_FORMAT, DICOM_TIME_FORMAT
+from datetime import datetime
 import numpy as np
 import pydicom as dcm
 from pydicom.dataset import Dataset, FileDataset, FileMetaDataset
 from pydicom.uid import ImplicitVRLittleEndian, PYDICOM_IMPLEMENTATION_UID, generate_uid
 import skimage as ski
-from typing import Dict, List, Optional, Sequence, Tuple
+from typing import Dict, List, Sequence, Tuple
+
+from ....typing import LabelImage3D, LandmarkID, Point2D, Point3D, Points3D, RegionID, Size2D, Size3D, Spacing2D, Spacing3D
+from ....utils.dicom import DICOM_DATE_FORMAT, DICOM_TIME_FORMAT
+from ....utils.logging import logger
 
 CONTOUR_FORMATS = ['POINT', 'CLOSED_PLANAR']
 CONTOUR_METHOD = 'SKIMAGE'
@@ -16,16 +18,16 @@ CONTOUR_METHOD = 'SKIMAGE'
 
 @dataclass
 class LandmarksData:
-    data: Tuple[float]
-    name: str
-    number: Optional[int] = None
+    data: Point3D
+    name: LandmarkID
+    number: int | None = None
 
 @dataclass
 class ROIData:
-    colour: Colour
-    data: np.ndarray
-    name: str
-    number: Optional[int] = None
+    colour: str
+    data: LabelImage3D
+    name: RegionID
+    number: int | None = None
 
 class SOPClassUID:
     DETACHED_STUDY_MANAGEMENT = '1.2.840.10008.3.1.2.3.1'
@@ -257,8 +259,8 @@ class RtStructConverter:
             ref_cts: the reference CT dicoms.
         """
         # Perform checks.
-        logging.info(name)
-        logging.info(landmark)
+        logger.info(name)
+        logger.info(landmark)
         assert len(landmark) == 3
 
         # Get structure number.
@@ -561,10 +563,11 @@ class RtStructConverter:
     @classmethod
     def _get_mask_slice(
         cls,
-        points: np.ndarray,
+        points: Points3D,
         size: Size2D,
         spacing: Spacing2D,
-        origin: Point2D) -> np.ndarray:
+        origin: Point2D,
+        ) -> np.ndarray:
         """
         returns: the boolean array mask for the slice.
         args:
@@ -599,7 +602,8 @@ class RtStructConverter:
         region: RegionID,
         size: Size3D,
         spacing: Spacing3D,
-        origin: Point3D) -> RegionArray:
+        origin: Point3D,
+        ) -> LabelImage3D:
         # Load the contour data.
         roi_infos = rtstruct.StructureSetROISequence
         roi_contours = rtstruct.ROIContourSequence
@@ -657,7 +661,8 @@ class RtStructConverter:
     def get_roi_landmark(
         cls,
         rtstruct: dcm.dataset.FileDataset,
-        name: str) -> np.ndarray:
+        name: str,
+        ) -> np.ndarray:
         """
         returns: an np.ndarray of mask data.
         returns: an (x, y, z) landmark location in patient coordinates [mm].
@@ -700,13 +705,15 @@ class RtStructConverter:
     @classmethod
     def get_roi_names(
         cls,
-        rtstruct: dcm.dataset.FileDataset) -> List[RegionID]:
+        rtstruct: dcm.dataset.FileDataset,
+        ) -> List[RegionID]:
         return [i.ROIName for i in rtstruct.StructureSetROISequence]
 
     @classmethod
     def get_roi_numbers(
         cls,
-        rtstruct: dcm.dataset.FileDataset) -> List[int]:
+        rtstruct: dcm.dataset.FileDataset,
+        ) -> List[int]:
         return [int(i.ROINumber) for i in rtstruct.StructureSetROISequence]
 
     @classmethod

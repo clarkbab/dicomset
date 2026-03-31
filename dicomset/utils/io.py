@@ -2,6 +2,7 @@ import ast
 import os
 import nibabel as nib
 import nrrd
+import numpy as np
 import pandas as pd
 from typing import Any, Dict, List, Tuple 
 import yaml
@@ -79,6 +80,20 @@ def load_nrrd(
     affine[:3, 3] = header['space origin']
     affine[3, 3] = 1.0
     return data, affine
+
+def load_numpy(
+    filepath: str,
+    keys: str | List[str] = 'data',
+    ) -> np.ndarray:
+    assert filepath.endswith('.npy') or filepath.endswith('.npz'), "Filepath must end with .npy or .npz"
+    data = np.load(filepath)
+    if filepath.endswith('.npz'):
+        keys = arg_to_list(keys, str)
+        items = [data[k] for k in keys]
+        items = items[0] if len(items) == 1 else items
+    else:
+        items = data
+    return items
 
 def load_yaml(filepath: FilePath) -> Any:
     filepath = resolve_filepath(filepath)

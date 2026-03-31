@@ -1,64 +1,45 @@
-from mymi import config
-from mymi.utils import with_makeitso
 import os
 import shutil
 from typing import List
 
+from .. import config
+from ..typing import DatasetID
+from ..utils.misc import with_makeitso
 from .dataset import TrainingDataset
 
-def create(name: str) -> TrainingDataset:
-    ds_path = os.path.join(config.directories.datasets, 'training', name)
+def create(id: DatasetID) -> TrainingDataset:
+    ds_path = os.path.join(config.directories.datasets, 'training', id)
+    if os.path.exists(ds_path):
+        raise FileExistsError(f"Dataset '{id}' already exists at {ds_path}.")
     os.makedirs(ds_path)
-    return TrainingDataset(name, check_processed=False)
+    return TrainingDataset(id)
 
 def destroy(
-    name: str,
-    makeitso: bool = False) -> None:
-    ds_path = os.path.join(config.directories.datasets, 'training', name)
+    id: DatasetID,
+    makeitso: bool = True,
+    ) -> None:
+    ds_path = os.path.join(config.directories.datasets, 'training', id)
     if os.path.exists(ds_path):
-        with_makeitso(
-            makeitso,
-            lambda: shutil.rmtree(ds_path),
-            f"Destroying training dataset '{name}' at {ds_path}."
-        )
+        with_makeitso(makeitso, lambda: shutil.rmtree(ds_path), f"Destroying training dataset '{id}' at {ds_path}.")
 
-def exists(name: str) -> bool:
-    ds_path = os.path.join(config.directories.datasets, 'training', name)
+def exists(id: DatasetID) -> bool:
+    ds_path = os.path.join(config.directories.datasets, 'training', id)
     return os.path.exists(ds_path)
-
-def exists(name: str) -> bool:
-    ds_path = os.path.join(config.directories.datasets, 'training', name)
-    return os.path.exists(ds_path)
-
-def get(name: str) -> TrainingDataset:
-    if exists(name):
-        return TrainingDataset(name)
-    else:
-        raise ValueError(f"TrainingDataset '{name}' doesn't exist.")
     
 def list() -> List[str]:
     path = os.path.join(config.directories.datasets, 'training')
-    if os.path.exists(path):
-        return sorted(os.listdir(path))
-    else:
-        return []
-
-def load(name: str) -> TrainingDataset:
-    if exists(name):
-        return TrainingDataset(name)
-    else:
-        raise FileNotFoundError(f"Training dataset '{name}' does not exist.")
+    return list(sorted(os.listdir(path))) if os.path.exists(path) else []
 
 def recreate(
-    name: str,
-    makeitso: bool = False,
+    id: DatasetID,
+    makeitso: bool = True,
     ) -> TrainingDataset:
-    destroy(name, makeitso=makeitso)
-    if not makeitso:
-        if exists(name):
-            return TrainingDataset(name)
+    destroy(id, makeitso=makeitso)
+    if makeitso:
+        return create(id)
+    else:
+        if exists(id):
+            return TrainingDataset(id)
         else:
             # Creating is fine with makeitso=False.
-            create(name)
-    else:
-        return create(name)
+            return create(id)

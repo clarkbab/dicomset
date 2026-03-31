@@ -4,7 +4,8 @@ from typing import Any, Callable, Dict, List, Literal
 
 from ..mixins import IndexWithErrorsMixin
 from ..patient import Patient
-from ..regions_map import PatientID, RegionsMap, StudyID
+from ..regions_map import RegionsMap
+from ..typing import PatientID, StudyID
 from ..utils.args import arg_to_list, resolve_id
 from ..utils.pandas import append_row
 from .study import DicomStudy 
@@ -18,7 +19,7 @@ class DicomPatient(IndexWithErrorsMixin, Patient):
         index_policy: Dict[str, Any],
         index_errors: pd.DataFrame,
         config: Dict[str, Any] | None = None,
-        ct_from: 'DicomPatient' | None = None,
+        ct_from: Literal['DicomPatient'] | None = None,
         regions_map: RegionsMap | None = None,
         ) -> None:
         super().__init__(dataset, id, config=config, ct_from=ct_from, regions_map=regions_map)

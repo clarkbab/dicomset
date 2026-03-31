@@ -1,49 +1,45 @@
+import os
 import shutil
-from typing import *
+from typing import List
 
-from .dataset import *
+from .. import config
+from ..typing import DatasetID
+from ..utils.misc import with_makeitso
+from .dataset import RawDataset
 
-def create(name: str) -> RawDataset:
-    ds_path = os.path.join(config.directories.datasets, 'raw', name)
-    os.makedirs(ds_path)
-    return RawDataset(name, check_processed=False)
-
-def destroy(name: str) -> None:
-    ds_path = os.path.join(config.directories.datasets, 'raw', name)
+def create(id: DatasetID) -> RawDataset:
+    ds_path = os.path.join(config.directories.datasets, 'raw', id)
     if os.path.exists(ds_path):
-        shutil.rmtree(ds_path)
+        raise FileExistsError(f"Dataset '{id}' already exists at {ds_path}.")
+    os.makedirs(ds_path)
+    return RawDataset(id)
 
-def exists(name: str) -> bool:
-    ds_path = os.path.join(config.directories.datasets, 'raw', name)
+def destroy(
+    id: DatasetID,
+    makeitso: bool = True,
+    ) -> None:
+    ds_path = os.path.join(config.directories.datasets, 'raw', id)
+    if os.path.exists(ds_path):
+        with_makeitso(makeitso, lambda: shutil.rmtree(ds_path), f"Destroying raw dataset '{id}' at {ds_path}.")
+
+def exists(id: DatasetID) -> bool:
+    ds_path = os.path.join(config.directories.datasets, 'raw', id)
     return os.path.exists(ds_path)
-
-def exists(name: str) -> bool:
-    ds_path = os.path.join(config.directories.datasets, 'raw', name)
-    return os.path.exists(ds_path)
-
-def get(name: str) -> RawDataset:
-    if exists(name):
-        return RawDataset(name)
-    else:
-        raise ValueError(f"RawDataset '{name}' doesn't exist.")
     
 def list() -> List[str]:
     path = os.path.join(config.directories.datasets, 'raw')
-    if os.path.exists(path):
-        return sorted(os.listdir(path))
-    else:
-        return []
+    return list(sorted(os.listdir(path))) if os.path.exists(path) else []
 
 def recreate(
-    name: str,
-    makeitso: bool = False,
+    id: DatasetID,
+    makeitso: bool = True,
     ) -> RawDataset:
-    destroy(name, makeitso=makeitso)
-    if not makeitso:
-        if exists(name):
-            return RawDataset(name)
+    destroy(id, makeitso=makeitso)
+    if makeitso:
+        return create(id)
+    else:
+        if exists(id):
+            return RawDataset(id)
         else:
             # Creating is fine with makeitso=False.
-            return create(name)
-    else:
-        return create(name)
+            return create(id)

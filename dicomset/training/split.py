@@ -1,19 +1,21 @@
-from mymi.regions import regions_to_list
 import os
 import pandas as pd
-from typing import List, Optional
+from typing import List
 
-from .sample import TrainingSample, regions
+from ..typing import SampleID, SplitID, RegionID
+from ..utils.regions import regions_to_list
+from .sample import TrainingSample
 
 class HoldoutSplit:
     def __init__(
         self,
         dataset: 'TrainingDataset',
-        id: str) -> None:
+        id: SplitID,
+        ) -> None:
         self.__dataset = dataset
         self._id = id
         self.__global_id = f"{self.__dataset}:{self._id}"
-        self.__path = os.path.join(self.__dataset.path, 'data', self._id)
+        self.__path = os.path.join(self.__dataset.path, 'data', str(self._id))
         if not os.path.exists(self.__path):
             raise ValueError(f"Training split '{self.__global_id}' does not exist.")
         self.__index = None
@@ -31,8 +33,9 @@ class HoldoutSplit:
 
     def list_samples(
         self,
-        regions: Optional[Regions] = None) -> List[int]:
-        filter_regions = regions_to_list(regions, literals={ 'all': self.dataset.regions })
+        region_ids: RegionID | List[RegionID] | None = None,
+        ) -> List[SampleID]:
+        filter_regions = regions_to_list(region_ids, literals={ 'all': self.dataset.regions })
         sample_ids = self.index['sample-id'].to_list()
         if filter_regions is None:
             return sample_ids
@@ -47,7 +50,8 @@ class HoldoutSplit:
 
     def sample(
         self,
-        sample_id: int) -> TrainingSample:
+        sample_id: SampleID,
+        ) -> TrainingSample:
         return TrainingSample(self, sample_id)
 
     def __str__(self) -> str:
