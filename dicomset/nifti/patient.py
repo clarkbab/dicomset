@@ -4,7 +4,8 @@ import pandas as pd
 from typing import List, Literal
 
 from .. import config
-from ..dicom import DicomDataset, DicomPatient
+from ..dicom.dataset import DicomDataset
+from ..dicom.patient import DicomPatient
 from ..mixins import IndexMixin
 from ..patient import Patient
 from ..regions_map import RegionsMap

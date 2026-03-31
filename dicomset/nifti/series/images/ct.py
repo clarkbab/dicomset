@@ -4,7 +4,8 @@ import pandas as pd
 from typing import Callable
 
 from .... import config
-from ....dicom import DicomCtSeries, DicomDataset
+from ....dicom import DicomDataset
+from ....dicom.series import DicomCtSeries
 from ....typing import AffineMatrix3D, Box3D, Image3D, Point3D, SeriesID, Size3D, Spacing3D
 from ....utils.io import load_nifti, load_nrrd
 from ....utils.python import has_private_attr

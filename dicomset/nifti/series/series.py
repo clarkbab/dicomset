@@ -1,5 +1,5 @@
 
-from ...dicom import DicomSeries
+from ...dicom.series import DicomSeries
 from ...mixins import IndexMixin
 from ...series import Series
 from ...typing import NiftiModality

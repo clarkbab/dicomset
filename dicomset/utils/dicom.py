@@ -3,7 +3,7 @@ from datetime import datetime
 import numpy as np
 import os
 import pydicom as dcm
-from typing import List, Tuple
+from typing import Any, Dict, List, Tuple
 
 from .geometry import create_affine
 from ..typing import AffineMatrix3D, DirPath, FilePath, Image2D, Image3D, PatientID, SeriesID, StudyID
@@ -118,6 +118,23 @@ def from_rtdose_dicom(
     affine = create_affine(spacing, origin)
 
     return data, affine
+
+def from_rtplan_dicom(
+    rtplan: FilePath | dcm.dataset.FileDataset,
+    ) -> Dict[str, Any]:
+    if isinstance(rtplan, str):
+        rtplan = dcm.dcmread(rtplan, force=False)
+
+    # Get info.
+    info = {}
+    info['isocentre'] = tuple([float(i) for i in rtplan.BeamSequence[0].ControlPointSequence[0].IsocenterPosition])
+    # info['couch-shift'] = tuple([
+    #     float(rtplan.BeamSequence[0].ControlPointSequence[0].TableTopLateralPosition),
+    #     float(rtplan.BeamSequence[0].ControlPointSequence[0].TableTopVerticalPosition),
+    #     float(rtplan.BeamSequence[0].ControlPointSequence[0].TableTopLongitudinalPosition),
+    # ])
+
+    return info
 
 def to_ct_dicom(
     data: Image3D, 

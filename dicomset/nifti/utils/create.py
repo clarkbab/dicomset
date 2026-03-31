@@ -1,129 +1,100 @@
-from mymi.transforms import Any, LabelArray, ModelID, RegionID, affine, json, registration, save_csv, save_json, save_nifti, sitk, sitk_save_transform, with_makeitso
 import os
+import pandas as pd
+import SimpleITK as sitk
 
-from ..dataset import DatasetID, NiftiDataset, Optional, PatientID, Union, filepath, regions
-from ..series import Affine, CtImageArray, DoseImageArray, LandmarksFrame, MrImageArray, NiftiModality, NiftiSeriesID, Point3D, Spacing3D, StudyID, ct, pd
+from ...typing import AffineMatrix3D, DatasetID, Image3D, LabelImage3D, Landmarks3D, ModelID, NiftiModality, PatientID, RegionID, SeriesID, StudyID
+from ...utils.io import save_csv, save_nifti, save_transform
+from ..dataset import NiftiDataset
 
 def create_ct(
     dataset: DatasetID,
     patient_id: PatientID,
     study_id: StudyID,
-    series: NiftiSeriesID,
-    data: CtImageArray,
-    affine: Affine,
-    makeitso: bool = False) -> None:
+    series_id: SeriesID,
+    data: Image3D,
+    affine: AffineMatrix3D,
+    ) -> None:
     set = NiftiDataset(dataset)
-    filepath = os.path.join(set.path, 'data', 'patients', pat, study, 'ct', f'{series}.nii.gz')
-    with_makeitso(
-        makeitso,
-        lambda: save_nifti(data, affine, filepath),
-        f"Creating CT at {filepath}."
-    )
+    filepath = os.path.join(set.path, 'data', 'patients', patient_id, study_id, 'ct', f'{series_id}.nii.gz')
+    save_nifti(data, affine, filepath)
 
 def create_index(
     dataset: DatasetID,
     index: pd.DataFrame,
-    makeitso: bool = False,
     ) -> None:
     set = NiftiDataset(dataset)
     filepath = os.path.join(set.path, 'index.csv')
-    with_makeitso(
-        makeitso,
-        lambda: save_csv(index, filepath),
-        f"Creating index at {filepath}."
-    )
-
-def create_info(
-    dataset: DatasetID,
-    patient_id: PatientID,
-    study_id: StudyID,
-    data: Any,
-    makeitso: bool = False,
-    ) -> None:
-    set = NiftiDataset(dataset)
-    filepath = os.path.join(set.path, 'data', 'patients', pat, study, 'info.json')
-    with_makeitso(
-        makeitso,
-        lambda: save_json(data, filepath),
-        f"Saving info at {filepath}."
-    )
+    save_csv(index, filepath)
 
 def create_region(
     dataset: DatasetID,
     patient_id: PatientID,
     study_id: StudyID,
-    series: NiftiSeriesID,
-    region: RegionID,
-    data: LabelArray,
-    affine: Affine,
-    makeitso: bool = False,
+    series_id: SeriesID,
+    region_id: RegionID,
+    data: LabelImage3D,
+    affine: AffineMatrix3D,
     ) -> None:
     set = NiftiDataset(dataset)
-    filepath = os.path.join(set.path, 'data', 'patients', pat, study, 'regions', series, f'{region}.nii.gz')
-    with_makeitso(
-        makeitso,
-        lambda: save_nifti(data, affine, filepath),
-        f"Creating region at {filepath}."
-    )
+    filepath = os.path.join(set.path, 'data', 'patients', patient_id, study_id, 'regions', series_id, f'{region_id}.nii.gz')
+    save_nifti(data, affine, filepath)
 
 def create_registration_moved_image(
     dataset: DatasetID,
     fixed_patient_id: PatientID,
     model: ModelID,
-    data: Union[CtImageArray, DoseImageArray, MrImageArray],
+    data: Image3D,
+    affine: AffineMatrix3D,
     modality: NiftiModality,
-    spacing: Spacing3D,
-    origin: Point3D,
-    dry_run: bool = True,
     fixed_study_id: StudyID = 'study_1',
-    moving_pat: Optional[PatientID] = None,
-    moving_study_id: StudyID = 'study_0') -> None:
+    moving_patient_id: PatientID | None = None,
+    moving_study_id: StudyID = 'study_0',
+    ) -> None:
     set = NiftiDataset(dataset)
-    moving_pat = fixed_pat if moving_pat is None else moving_pat
-    filepath = os.path.join(set.path, 'data', 'predictions', 'registration', 'patients', fixed_pat, fixed_study, moving_pat, moving_study, modality, f'{model}.nii.gz')
-    with_makeitso(dry_run, lambda: save_nifti(data, filepath, origin=origin, spacing=spacing), f"Creating moved image at {filepath}.")
+    moving_patient_id = fixed_patient_id if moving_patient_id is None else moving_patient_id
+    filepath = os.path.join(set.path, 'data', 'predictions', 'registration', 'patients', fixed_patient_id, fixed_study_id, moving_patient_id, moving_study_id, modality, f'{model}.nii.gz')
+    save_nifti(data, affine, filepath)
 
 def create_registration_moved_landmarks(
     dataset: DatasetID,
     fixed_patient_id: PatientID,
     model: ModelID,
-    data: LandmarksFrame,
-    dry_run: bool = True,
+    data: Landmarks3D,
     fixed_study_id: StudyID = 'study_1',
-    moving_pat: Optional[PatientID] = None,
-    moving_study_id: StudyID = 'study_0') -> None:
+    moving_patient_id: PatientID | None = None,
+    moving_study_id: StudyID = 'study_0',
+    ) -> None:
     set = NiftiDataset(dataset)
-    moving_pat = fixed_pat if moving_pat is None else moving_pat
-    filepath = os.path.join(set.path, 'data', 'predictions', 'registration', 'patients', fixed_pat, fixed_study, moving_pat, moving_study, 'landmarks', f'{model}.csv')
-    with_makeitso(dry_run, lambda: save_csv(data, filepath), f"Creating moved landmarks at {filepath}.")
+    moving_patient_id = fixed_patient_id if moving_patient_id is None else moving_patient_id
+    filepath = os.path.join(set.path, 'data', 'predictions', 'registration', 'patients', fixed_patient_id, fixed_study_id, moving_patient_id, moving_study_id, 'landmarks', f'{model}.csv')
+    save_csv(data, filepath)
 
 def create_registration_moved_region(
     dataset: DatasetID,
     fixed_patient_id: PatientID,
-    region: RegionID,
+    region_id: RegionID,
     model: ModelID,
-    data: LabelArray,
-    spacing: Spacing3D,
-    origin: Point3D,
-    dry_run: bool = True,
+    data: LabelImage3D,
+    affine: AffineMatrix3D,
     fixed_study_id: StudyID = 'study_1',
-    moving_pat: Optional[PatientID] = None,
-    moving_study_id: StudyID = 'study_0') -> None:
+    moving_patient_id: PatientID | None = None,
+    moving_study_id: StudyID = 'study_0',
+    ) -> None:
     set = NiftiDataset(dataset)
-    moving_pat = fixed_pat if moving_pat is None else moving_pat
-    filepath = os.path.join(set.path, 'data', 'predictions', 'registration', 'patients', fixed_pat, fixed_study, moving_pat, moving_study, 'regions', region, f'{model}.nii.gz')
-    with_makeitso(dry_run, lambda: save_nifti(data, filepath, origin=origin, spacing=spacing), f"Creating moved region at {filepath}.")
+    moving_patient_id = fixed_patient_id if moving_patient_id is None else moving_patient_id
+    filepath = os.path.join(set.path, 'data', 'predictions', 'registration', 'patients', fixed_patient_id, fixed_study_id, moving_patient_id, moving_study_id, 'regions', region_id, f'{model}.nii.gz')
+    save_nifti(data, affine, filepath)
 
 def create_registration_transform(
     dataset: DatasetID,
     fixed_patient_id: PatientID,
     model: ModelID,
     transform: sitk.Transform,
-    dry_run: bool = True,
     fixed_study_id: StudyID = 'study_1',
-    moving_pat: Optional[PatientID] = None,
-    moving_study_id: StudyID = 'study_0') -> None:
+    moving_patient_id: PatientID | None = None,
+    moving_study_id: StudyID = 'study_0',
+    ) -> None:
     set = NiftiDataset(dataset)
-    moving_pat = fixed_pat if moving_pat is None else moving_pat
-    filepath = os.path.join(set.path, 'data', 'predictions', 'registration', 'patients', fixed_pat, fixed_study, moving_pat, moving_study, 'transform', f'{model}.hdf5')
-    with_makeitso(dry_run, lambda: sitk_save_transform(transform, filepath), f"Creating registration transform at {filepath}.")
+    moving_patient_id = fixed_patient_id if moving_patient_id is None else moving_patient_id
+    filepath = os.path.join(set.path, 'data', 'predictions', 'registration', 'patients', fixed_patient_id, fixed_study_id, moving_patient_id, moving_study_id, 'transform', f'{model}.hdf5')
+    save_transform(transform, filepath)

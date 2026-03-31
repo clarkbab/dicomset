@@ -3,14 +3,15 @@ import pandas as pd
 from typing import Dict, List, Literal
 
 from .. import config
-from ..dicom import DicomDataset, DicomStudy
+from ..dicom.dataset import DicomDataset
+from ..dicom.study import DicomStudy
 from ..mixins import IndexMixin
 from ..regions_map import RegionsMap
 from ..study import Study
-from ..typing import SeriesID, StudyID
+from ..typing import NiftiModality, SeriesID, StudyID
 from ..utils.args import arg_to_list, resolve_id
 from ..utils.logging import logger
-from .series import NiftiCtSeries, NiftiDoseSeries, NiftiImageSeries, NiftiLandmarksSeries, NiftiModality, NiftiMrSeries, NiftiRegionsSeries, NiftiSeries
+from .series import NiftiCtSeries, NiftiDoseSeries, NiftiImageSeries, NiftiLandmarksSeries, NiftiMrSeries, NiftiRegionsSeries, NiftiSeries
 
 class NiftiStudy(IndexMixin, Study):
     def __init__(

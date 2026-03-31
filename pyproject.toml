@@ -16,6 +16,7 @@ dependencies = [
     "pydicom",
     "pyyaml",
     "scikit-image",
+    "SimpleITK",
     "tqdm",
 ]
 

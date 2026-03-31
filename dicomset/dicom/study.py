@@ -6,10 +6,11 @@ from typing import Any, Dict, List, Literal
 from ..mixins import IndexWithErrorsMixin
 from ..regions_map import RegionsMap
 from ..study import Study
-from ..typing import SeriesID, StudyID
+from ..typing import DicomModality, SeriesID, StudyID
 from ..utils.args import alias_kwargs, arg_to_list, resolve_id
+from ..utils.dicom import DICOM_DATE_FORMAT, DICOM_TIME_FORMAT, DICOM_RTSTRUCT_REF_CT_KEY
 from ..utils.logging import logger
-from .series import DICOM_DATE_FORMAT, DICOM_TIME_FORMAT, DicomCtSeries, DicomModality, DicomMrSeries, DicomRtDoseSeries, DicomRtPlanSeries, DicomRtStructSeries, DicomSeries
+from .series import DicomCtSeries, DicomMrSeries, DicomRtDoseSeries, DicomRtPlanSeries, DicomRtStructSeries, DicomSeries
 
 class DicomStudy(IndexWithErrorsMixin, Study):
     def __init__(

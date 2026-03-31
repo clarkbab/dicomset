@@ -1,2 +1,2 @@
-from .rtstruct import *
-from .rtstruct_converter import *
+from .rtstruct import DicomRtStructSeries
+from .rtstruct_converter import RtStructConverter

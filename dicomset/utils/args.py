@@ -129,7 +129,6 @@ def resolve_id(
         idx = int(id.split(':')[1])
         ids = all_ids() 
         if idx > len(ids) - 1:
-            print(ids)
             raise ValueError(f"Index ({idx}) was larger than list (len={len(ids)}).")
         id = ids[idx]
 

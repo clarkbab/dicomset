@@ -7,14 +7,18 @@ from ..typing import DatasetID
 from ..utils.misc import with_makeitso
 from .dataset import DicomDataset
 from .patient import DicomPatient
-from .series import DicomCtSeries, DicomMrSeries, DicomRtDoseSeries, DicomRtStructSeries, DicomSeries
+from .series import DicomCtSeries, DicomMrSeries, DicomRtDoseSeries, DicomRtPlanSeries, DicomRtStructSeries, DicomSeries
 from .study import DicomStudy
 
-def create(id: DatasetID) -> DicomDataset:
+def create(
+    id: DatasetID,
+    recreate: bool = False,
+    ) -> DicomDataset:
     ds_path = os.path.join(config.directories.datasets, 'dicom', id)
     if os.path.exists(ds_path):
-        raise FileExistsError(f"Dataset '{id}' already exists at {ds_path}.")
-    os.makedirs(ds_path)
+        if recreate:
+            shutil.rmtree(ds_path)
+    os.makedirs(ds_path, exist_ok=True)
     return DicomDataset(id)
 
 def destroy(
@@ -28,21 +32,13 @@ def destroy(
 def exists(id: DatasetID) -> bool:
     ds_path = os.path.join(config.directories.datasets, 'dicom', id)
     return os.path.exists(ds_path)
+
+def load(id: DatasetID) -> DicomDataset:
+    ds_path = os.path.join(config.directories.datasets, 'dicom', id)
+    if not os.path.exists(ds_path):
+        raise FileNotFoundError(f"Dicom dataset '{id}' not found at {ds_path}.")
+    return DicomDataset(id)
     
 def list() -> List[str]:
     path = os.path.join(config.directories.datasets, 'dicom')
     return list(sorted(os.listdir(path))) if os.path.exists(path) else []
-
-def recreate(
-    id: DatasetID,
-    makeitso: bool = True,
-    ) -> DicomDataset:
-    destroy(id, makeitso=makeitso)
-    if makeitso:
-        return create(id)
-    else:
-        if exists(id):
-            return DicomDataset(id)
-        else:
-            # Creating is fine with makeitso=False.
-            return create(id)

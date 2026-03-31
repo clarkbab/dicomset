@@ -24,6 +24,7 @@ LabelImage3D = Bool[np.ndarray, "X Y Z"]
 Landmarks2D = Float[np.ndarray, "N 2"] | pd.DataFrame
 Landmarks3D = Float[np.ndarray, "N 3"] | pd.DataFrame
 LandmarkID = str
+ModelID = str
 NiftiModality = Literal['ct', 'dose', 'landmarks', 'mr', 'plan', 'regions']
 Number = int | float
 PatientID = str

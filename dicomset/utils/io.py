@@ -4,6 +4,7 @@ import nibabel as nib
 import nrrd
 import numpy as np
 import pandas as pd
+import SimpleITK as sitk
 from typing import Any, Dict, List, Tuple 
 import yaml
 
@@ -82,7 +83,7 @@ def load_nrrd(
     return data, affine
 
 def load_numpy(
-    filepath: str,
+    filepath: FilePath,
     keys: str | List[str] = 'data',
     ) -> np.ndarray:
     assert filepath.endswith('.npy') or filepath.endswith('.npz'), "Filepath must end with .npy or .npz"
@@ -102,25 +103,63 @@ def load_yaml(filepath: FilePath) -> Any:
 
 def save_csv(
     data: pd.DataFrame,
-    filepath: str,
+    filepath: FilePath,
     index: bool = False,
     overwrite: bool = True,
     ) -> None:
     filepath = resolve_filepath(filepath)
-    if os.path.exists(filepath):
-        if overwrite:
-            os.makedirs(os.path.dirname(filepath), exist_ok=True)
-            data.to_csv(filepath, index=index)
+    if os.path.exists(filepath) and not overwrite:
+        raise ValueError(f"File '{filepath}' already exists, use overwrite=True.")
+    os.makedirs(os.path.dirname(filepath), exist_ok=True)
+    data.to_csv(filepath, index=index)
+
+def save_nifti(
+    data: Image3D,
+    affine: AffineMatrix3D,
+    filepath: FilePath,
+    ) -> None:
+    filepath = resolve_filepath(filepath)
+    assert filepath.endswith('.nii.gz') or filepath.endswith('.nii'), "Filepath must end with .nii or .nii.gz"
+    if data.dtype == bool:
+        data = data.astype(np.uint32)
+    img = nib.nifti1.Nifti1Image(data, affine)
+    os.makedirs(os.path.dirname(filepath), exist_ok=True)
+    nib.save(img, filepath)
+
+def save_numpy(
+    data: np.ndarray | List[np.ndarray] | Dict[str, np.ndarray],
+    filepath: FilePath,
+    keys: str | List[str] = 'data',
+    ) -> None:
+    filepath = resolve_filepath(filepath)
+    assert filepath.endswith('.npy') or filepath.endswith('.npz'), "Filepath must end with .npy or .npz"
+    os.makedirs(os.path.dirname(filepath), exist_ok=True)
+    if filepath.endswith('.npz'):
+        keys = arg_to_list(keys, str)
+        if isinstance(data, dict):
+            np.savez_compressed(filepath, **data)
         else:
-            raise ValueError(f"File '{filepath}' already exists, use overwrite=True.")
+            items = data if isinstance(data, list) else [data]
+            np.savez_compressed(filepath, **{k: v for k, v in zip(keys, items)})
     else:
-        os.makedirs(os.path.dirname(filepath), exist_ok=True)
-        data.to_csv(filepath, index=index)
+        np.save(filepath, data)
+
+def save_transform(
+    transform: sitk.Transform,
+    filepath: FilePath,
+    overwrite: bool = True,
+    ) -> None:
+    filepath = resolve_filepath(filepath)
+    if os.path.exists(filepath) and not overwrite:
+        raise ValueError(f"File '{filepath}' already exists, use overwrite=True.")
+    os.makedirs(os.path.dirname(filepath), exist_ok=True)
+    sitk.WriteTransform(transform, filepath)
 
 def save_yaml(
     data: Any,
     filepath: FilePath,
     ) -> None:
     filepath = resolve_filepath(filepath)
+    os.makedirs(os.path.dirname(filepath), exist_ok=True)
     with open(filepath, 'w') as f:
         yaml.dump(data, f)
