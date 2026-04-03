@@ -1,5 +1,4 @@
 from datetime import datetime as dt
-from typing import Literal
 
 from ...mixins import IndexMixin
 from ...series import Series

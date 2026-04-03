@@ -12,7 +12,6 @@ from ..regions_map import RegionsMap
 from ..typing import DatasetID, GroupID, PatientID, RegionID
 from ..utils.args import arg_to_list, resolve_id
 from ..utils.io import load_csv, load_yaml
-from ..typing import DatasetID, GroupID, PatientID, RegionID
 from .patient import NiftiPatient
 
 class NiftiDataset(IndexMixin, Dataset):

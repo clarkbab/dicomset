@@ -9,7 +9,7 @@ from .. import config
 from ..dataset import CT_FROM_REGEXP, Dataset, DatasetID
 from ..mixins import IndexWithErrorsMixin
 from ..regions_map import RegionsMap
-from ..typing import DatasetID, GroupID, PatientID, RegionID
+from ..typing import GroupID, PatientID, RegionID
 from ..utils.args import arg_to_list, resolve_id
 from ..utils.io import load_csv, load_yaml
 from ..utils.logging import logger

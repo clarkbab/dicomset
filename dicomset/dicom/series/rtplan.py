@@ -1,18 +1,24 @@
+from __future__ import annotations
+
 import os
 import pandas as pd
 import pydicom as dcm
-from typing import Any, Dict
+from typing import Any, Dict, TYPE_CHECKING
 
 from ... import config
 from ...typing import SeriesID
+if TYPE_CHECKING:
+    from ..dataset import DicomDataset
+    from ..patient import DicomPatient
+    from ..study import DicomStudy
 from .series import DicomSeries
 
 class DicomRtPlanSeries(DicomSeries):
     def __init__(
         self,
-        dataset: 'DicomDataset',
-        pat: 'DicomPatient',
-        study: 'DicomStudy',
+        dataset: DicomDataset,
+        pat: DicomPatient,
+        study: DicomStudy,
         id: SeriesID,
         index: pd.Series,
         index_policy: Dict[str, Any],

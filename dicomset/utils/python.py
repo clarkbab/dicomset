@@ -1,6 +1,6 @@
 import inspect
 import sys
-from typing import Any, Callable, Dict, List, Literal, Tuple, get_args, get_origin
+from typing import Any, Callable, Dict, List, Literal, Tuple, Union, get_args, get_origin
 
 from .misc import is_windows
 

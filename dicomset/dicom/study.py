@@ -3,12 +3,14 @@ import numpy as np
 import pandas as pd
 from typing import Any, Dict, List, Literal
 
+from ..dataset import Dataset
 from ..mixins import IndexWithErrorsMixin
+from ..patient import Patient
 from ..regions_map import RegionsMap
 from ..study import Study
 from ..typing import DicomModality, SeriesID, StudyID
 from ..utils.args import alias_kwargs, arg_to_list, resolve_id
-from ..utils.dicom import DICOM_DATE_FORMAT, DICOM_TIME_FORMAT, DICOM_RTSTRUCT_REF_CT_KEY
+from ..utils.dicom import DICOM_DATE_FORMAT, DICOM_RTSTRUCT_REF_CT_KEY, DICOM_TIME_FORMAT
 from ..utils.logging import logger
 from .series import DicomCtSeries, DicomMrSeries, DicomRtDoseSeries, DicomRtPlanSeries, DicomRtStructSeries, DicomSeries
 

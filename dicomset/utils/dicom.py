@@ -5,10 +5,10 @@ import os
 import pydicom as dcm
 from typing import Any, Dict, List, Tuple
 
-from .geometry import create_affine
 from ..typing import AffineMatrix3D, DirPath, FilePath, Image2D, Image3D, PatientID, SeriesID, StudyID
 from ..utils.geometry import affine_origin, affine_spacing
 from ..utils.maths import round
+from .geometry import create_affine
 
 DICOM_DATE_FORMAT = '%Y%m%d'
 DICOM_RTDOSE_REF_RTPLAN_KEY = 'RefRTPLANSOPInstanceUID'

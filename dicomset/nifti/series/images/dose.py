@@ -1,6 +1,8 @@
+from __future__ import annotations
+
 import os
 import pandas as pd
-from typing import Callable
+from typing import Callable, TYPE_CHECKING
 
 from .... import config
 from ....dicom.dataset import DicomDataset
@@ -8,14 +10,18 @@ from ....dicom.series import DicomRtDoseSeries
 from ....typing import Box3D, Image3D, Point3D, SeriesID, Size3D, Spacing3D
 from ....utils.io import load_nifti, load_nrrd
 from ....utils.python import has_private_attr
+if TYPE_CHECKING:
+    from ...dataset import NiftiDataset
+    from ...patient import NiftiPatient
+    from ...study import NiftiStudy
 from .image import NiftiImageSeries
 
 class NiftiDoseSeries(NiftiImageSeries):
     def __init__(
         self,
-        dataset: 'NiftiDataset',
-        pat: 'NiftiPatient',
-        study: 'NiftiStudy',
+        dataset: NiftiDataset,
+        pat: NiftiPatient,
+        study: NiftiStudy,
         id: SeriesID,
         index: pd.DataFrame | None = None
         ) -> None:

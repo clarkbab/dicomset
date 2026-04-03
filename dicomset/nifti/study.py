@@ -1,6 +1,8 @@
+from __future__ import annotations
+
 import os
 import pandas as pd
-from typing import Dict, List, Literal
+from typing import Dict, List, Literal, TYPE_CHECKING
 
 from .. import config
 from ..dicom.dataset import DicomDataset
@@ -11,13 +13,16 @@ from ..study import Study
 from ..typing import NiftiModality, SeriesID, StudyID
 from ..utils.args import arg_to_list, resolve_id
 from ..utils.logging import logger
+if TYPE_CHECKING:
+    from .dataset import NiftiDataset
+    from .patient import NiftiPatient
 from .series import NiftiCtSeries, NiftiDoseSeries, NiftiImageSeries, NiftiLandmarksSeries, NiftiMrSeries, NiftiRegionsSeries, NiftiSeries
 
 class NiftiStudy(IndexMixin, Study):
     def __init__(
         self,
-        dataset: 'NiftiDataset',
-        pat: 'NiftiPatient',
+        dataset: NiftiDataset,
+        pat: NiftiPatient,
         id: StudyID,
         ct_from: Literal['NiftiStudy'] | None = None,
         index: pd.DataFrame | None = None,

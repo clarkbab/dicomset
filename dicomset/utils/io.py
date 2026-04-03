@@ -1,11 +1,11 @@
 import ast
-import os
 import nibabel as nib
 import nrrd
 import numpy as np
+import os
 import pandas as pd
 import SimpleITK as sitk
-from typing import Any, Dict, List, Tuple 
+from typing import Any, Dict, List, Tuple
 import yaml
 
 from ..typing import AffineMatrix3D, FilePath, Image3D

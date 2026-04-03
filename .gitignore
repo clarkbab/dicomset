@@ -1,2 +1,3 @@
 *.egg-info
+.github
 __pycache__

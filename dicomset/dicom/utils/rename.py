@@ -4,7 +4,7 @@ import pydicom as dcm
 import shutil
 from tqdm import tqdm
 
-from ..dataset import DatasetID, DicomDataset, Dict, PatientID, filepath, match, re
+from ..dataset import DatasetID, DicomDataset, Dict, PatientID, filepath, load_csv, match, re
 
 def get_new_pat_id(
     old_patient_id: PatientID,

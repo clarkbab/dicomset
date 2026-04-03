@@ -1,23 +1,28 @@
-import numpy as np
+from __future__ import annotations
+
 import os
 import pandas as pd
-from typing import Callable
+from typing import Callable, TYPE_CHECKING
 
 from .... import config
 from ....dicom import DicomDataset
 from ....dicom.series import DicomCtSeries
 from ....typing import AffineMatrix3D, Box3D, Image3D, Point3D, SeriesID, Size3D, Spacing3D
+from ....utils.geometry import affine_origin, affine_spacing, fov
 from ....utils.io import load_nifti, load_nrrd
 from ....utils.python import has_private_attr
-from ....utils.geometry import fov, affine_origin, affine_spacing
+if TYPE_CHECKING:
+    from ...dataset import NiftiDataset
+    from ...patient import NiftiPatient
+    from ...study import NiftiStudy
 from .image import NiftiImageSeries
 
 class NiftiCtSeries(NiftiImageSeries):
     def __init__(
         self,
-        dataset: 'NiftiDataset',
-        patient: 'NiftiPatient',
-        study: 'NiftiStudy',
+        dataset: NiftiDataset,
+        patient: NiftiPatient,
+        study: NiftiStudy,
         id: SeriesID,
         index: pd.DataFrame | None = None
         ) -> None:

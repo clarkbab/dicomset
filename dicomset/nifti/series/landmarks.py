@@ -4,7 +4,10 @@ import pandas as pd
 from typing import List, Literal
 
 from ... import config
+from ...dataset import Dataset
 from ...dicom import DicomDataset, DicomRtStructSeries
+from ...patient import Patient
+from ...study import Study
 from ...typing import LandmarkID, Landmarks3D, SeriesID
 from ...utils.args import arg_to_list
 from ...utils.io import load_csv

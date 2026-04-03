@@ -1,10 +1,12 @@
+from __future__ import annotations
+
 import collections
 import numpy as np
 import os
-import pydicom as dcm
 import pandas as pd
+import pydicom as dcm
 import re
-from typing import Any, Dict, List, Literal, Tuple
+from typing import Any, Dict, List, Literal, Tuple, TYPE_CHECKING
 
 from .... import config as ds_config
 from ....regions_map import RegionsMap
@@ -14,6 +16,10 @@ from ....utils.conversion import to_numpy
 from ....utils.geometry import to_image_coords
 from ....utils.python import filter_lists
 from ....utils.regions import regions_to_list
+if TYPE_CHECKING:
+    from ...dataset import DicomDataset
+    from ...patient import DicomPatient
+    from ...study import DicomStudy
 from ..ct import DicomCtSeries
 from ..series import DicomSeries
 from .rtstruct_converter import RtStructConverter
@@ -23,9 +29,9 @@ DEFAULT_LANDMARK_REGEXP = r'^Marker \d+$'
 class DicomRtStructSeries(DicomSeries):
     def __init__(
         self,
-        dataset: 'DicomDataset',
-        patient: 'DicomPatient',
-        study: 'DicomStudy',
+        dataset: DicomDataset,
+        patient: DicomPatient,
+        study: DicomStudy,
         id: SeriesID,
         ref_ct: DicomCtSeries,
         index: pd.Series,

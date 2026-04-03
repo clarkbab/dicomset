@@ -1,7 +1,9 @@
+from __future__ import annotations
+
 import numpy as np
 import os
 import pandas as pd
-from typing import List, Literal
+from typing import List, Literal, TYPE_CHECKING
 
 from .. import config
 from ..dicom.dataset import DicomDataset
@@ -11,12 +13,14 @@ from ..patient import Patient
 from ..regions_map import RegionsMap
 from ..typing import PatientID, StudyID
 from ..utils.args import arg_to_list, resolve_id
+if TYPE_CHECKING:
+    from .dataset import NiftiDataset
 from .study import NiftiStudy
 
 class NiftiPatient(IndexMixin, Patient):
     def __init__(
         self,
-        dataset: 'NiftiDataset',
+        dataset: NiftiDataset,
         id: PatientID,
         ct_from: Literal['NiftiPatient'] | None = None,
         index: pd.DataFrame | None = None,

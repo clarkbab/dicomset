@@ -1,6 +1,8 @@
+from __future__ import annotations
+
 import numpy as np
 import pandas as pd
-from typing import Any, Callable, Dict, List, Literal
+from typing import Any, Callable, Dict, List, Literal, TYPE_CHECKING
 
 from ..mixins import IndexWithErrorsMixin
 from ..patient import Patient
@@ -8,12 +10,14 @@ from ..regions_map import RegionsMap
 from ..typing import PatientID, StudyID
 from ..utils.args import arg_to_list, resolve_id
 from ..utils.pandas import append_row
-from .study import DicomStudy 
+if TYPE_CHECKING:
+    from .dataset import DicomDataset
+from .study import DicomStudy
 
 class DicomPatient(IndexWithErrorsMixin, Patient):
     def __init__(
         self,
-        dataset: 'DicomDataset',
+        dataset: DicomDataset,
         id: PatientID,
         index: pd.DataFrame,
         index_policy: Dict[str, Any],

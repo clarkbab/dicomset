@@ -1,15 +1,19 @@
+from __future__ import annotations
+
 import os
 import pandas as pd
-from typing import List
+from typing import List, TYPE_CHECKING
 
-from ..typing import SampleID, SplitID, RegionID
+from ..typing import RegionID, SampleID, SplitID
 from ..utils.regions import regions_to_list
+if TYPE_CHECKING:
+    from .dataset import TrainingDataset
 from .sample import TrainingSample
 
 class HoldoutSplit:
     def __init__(
         self,
-        dataset: 'TrainingDataset',
+        dataset: TrainingDataset,
         id: SplitID,
         ) -> None:
         self.__dataset = dataset
@@ -21,7 +25,7 @@ class HoldoutSplit:
         self.__index = None
 
     @property
-    def dataset(self) -> 'TrainingDataset':
+    def dataset(self) -> TrainingDataset:
         return self.__dataset
 
     @property

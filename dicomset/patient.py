@@ -1,5 +1,6 @@
 from typing import Any, Dict, Literal
 
+from .dataset import Dataset
 from .regions_map import RegionsMap
 from .typing import PatientID
 

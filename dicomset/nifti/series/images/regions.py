@@ -1,7 +1,9 @@
+from __future__ import annotations
+
 import numpy as np
 import os
 import pandas as pd
-from typing import List, Literal, Tuple
+from typing import List, Literal, Tuple, TYPE_CHECKING
 
 from .... import config
 from ....dicom import DicomDataset, DicomRtStructSeries
@@ -10,14 +12,18 @@ from ....typing import BatchLabelImage3D, FilePath, RegionID, SeriesID
 from ....utils.args import alias_kwargs, arg_to_list
 from ....utils.io import load_nifti, load_nrrd
 from ....utils.regions import regions_to_list
+if TYPE_CHECKING:
+    from ...dataset import NiftiDataset
+    from ...patient import NiftiPatient
+    from ...study import NiftiStudy
 from .image import NiftiImageSeries
 
 class NiftiRegionsSeries(NiftiImageSeries):
     def __init__(
         self,
-        dataset: 'NiftiDataset',
-        patient: 'NiftiPatient',
-        study: 'NiftiStudy',
+        dataset: NiftiDataset,
+        patient: NiftiPatient,
+        study: NiftiStudy,
         id: SeriesID,
         index: pd.DataFrame | None = None,
         regions_map: RegionsMap | None = None,

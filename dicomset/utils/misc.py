@@ -1,8 +1,6 @@
-import numpy as np
 import sys
-from typing import Callable, List
+from typing import Callable
 
-from ..typing import Number
 from .logging import logger
 
 def is_windows() -> bool:

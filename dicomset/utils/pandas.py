@@ -1,6 +1,6 @@
 import numpy as np
 import pandas as pd
-from typing import *
+from typing import Dict, List, Union
 
 def append_row(
     df: pd.DataFrame,

@@ -1,5 +1,8 @@
 from typing import Any, Dict
 
+from .dataset import Dataset
+from .patient import Patient
+from .study import Study
 from .typing import SeriesID
 
 class Series:

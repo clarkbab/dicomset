@@ -7,7 +7,7 @@ from ..typing import DatasetID
 from ..utils.misc import with_makeitso
 from .dataset import NiftiDataset
 from .patient import NiftiPatient
-from .series import NiftiCtSeries, NiftiDoseSeries, NiftiImageSeries, NiftiMrSeries, NiftiRegionsSeries, NiftiLandmarksSeries
+from .series import NiftiCtSeries, NiftiDoseSeries, NiftiImageSeries, NiftiLandmarksSeries, NiftiMrSeries, NiftiRegionsSeries
 from .study import NiftiStudy
 
 def create(
